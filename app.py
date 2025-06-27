@@ -127,6 +127,16 @@ def add_job():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route("/debug_env", methods=["GET"])
+def debug_env():
+    return jsonify({
+        "GOOGLE_CREDENTIALS_PATH": os.getenv("GOOGLE_CREDENTIALS_PATH"),
+        "CANDIDATES_SHEET_ID": os.getenv("CANDIDATES_SHEET_ID"),
+        "EMPLOYERS_SHEET_ID": os.getenv("EMPLOYERS_SHEET_ID"),
+        "COMPANIES_SHEET_ID": os.getenv("COMPANIES_SHEET_ID"),
+        "USERS_SHEET_ID": os.getenv("USERS_SHEET_ID"),
+    })
+
 if __name__ == '__main__':
     print("🚀 Starting Flask app on port", os.environ.get("PORT", 10000))
     port = int(os.environ.get('PORT', 10000))
