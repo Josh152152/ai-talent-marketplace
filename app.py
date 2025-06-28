@@ -4,7 +4,6 @@ import os
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
-import pandas as pd
 from datetime import datetime
 
 # Load environment variables
@@ -14,20 +13,22 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Google Sheets setup
-scope = [
-    'https://spreadsheets.google.com/feeds',
-    'https://www.googleapis.com/auth/drive']
-creds = Credentials.from_service_account_file(
-    os.getenv('GOOGLE_CREDENTIALS_PATH'),
-    scopes=scope
-)
-client = gspread.authorize(creds)
-
-# Open the sheets
-candidates_sheet = client.open_by_key(os.getenv('CANDIDATES_SHEET_ID'))
-employers_sheet = client.open_by_key(os.getenv('EMPLOYERS_SHEET_ID'))
-companies_sheet = client.open_by_key(os.getenv('COMPANIES_SHEET_ID'))
+def get_gspread_clients():
+    """ Lazily initialize Google Sheets clients when needed. """
+    scope = [
+        'https://spreadsheets.google.com/feeds',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    creds = Credentials.from_service_account_file(
+        os.getenv('GOOGLE_CREDENTIALS_PATH'),
+        scopes=scope
+    )
+    client = gspread.authorize(creds)
+    return {
+        "candidates": client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')),
+        "employers": client.open_by_key(os.getenv('EMPLOYERS_SHEET_ID')),
+        "companies": client.open_by_key(os.getenv('COMPANIES_SHEET_ID'))
+    }
 
 @app.route("/", methods=["GET"])
 def home():
@@ -40,9 +41,10 @@ def health():
 @app.route("/test_sheets", methods=["GET"])
 def test_sheets():
     try:
-        candidates_data = candidates_sheet.sheet1.get_all_records()
-        employers_data = employers_sheet.sheet1.get_all_records()
-        companies_data = companies_sheet.sheet1.get_all_records()
+        sheets = get_gspread_clients()
+        candidates_data = sheets["candidates"].sheet1.get_all_records()
+        employers_data = sheets["employers"].sheet1.get_all_records()
+        companies_data = sheets["companies"].sheet1.get_all_records()
         return jsonify({
             "success": True,
             "samples": {
