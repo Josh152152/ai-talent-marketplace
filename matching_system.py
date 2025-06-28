@@ -1,11 +1,20 @@
 class MatchingSystem:
+    def __init__(self):
+        pass  # No sheet access here
+
     def find_matches(self, job, candidates):
-        required_skills = job.get("required_skills", "").lower().split(",")
+        job_skills = set(job.get("skills", []))
         matches = []
 
-        for cand in candidates:
-            candidate_skills = cand.get("skills", "").lower()
-            if any(skill.strip() in candidate_skills for skill in required_skills):
-                matches.append(cand)
+        for candidate in candidates:
+            candidate_skills = set(candidate.get("skills", "").split(","))
+            score = len(job_skills & candidate_skills)
+            if score > 0:
+                matches.append({
+                    "name": candidate.get("name"),
+                    "email": candidate.get("email"),
+                    "match_score": score
+                })
 
+        matches.sort(key=lambda x: x["match_score"], reverse=True)
         return matches
