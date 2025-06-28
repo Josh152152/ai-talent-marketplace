@@ -16,7 +16,7 @@ class CandidateRegistrationSystem:
 
             client = get_gspread_client()
 
-            # Determine which sheet to write to
+            # Get the corresponding sheet ID
             sheet_id_key = {
                 "candidates": "CANDIDATES_SHEET_ID",
                 "employers": "EMPLOYERS_SHEET_ID"
@@ -27,6 +27,8 @@ class CandidateRegistrationSystem:
 
             sheet_id = os.getenv(sheet_id_key)
             sheet = client.open_by_key(sheet_id).sheet1
+
+            # Append the data row
             sheet.append_row([name, email, skills, timestamp])
 
             return jsonify({"success": True, "message": f"{sheet_type.capitalize()} registered."})
