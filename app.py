@@ -37,13 +37,14 @@ def test_sheets():
         results = {}
         for name, sheet_id in sheets.items():
             try:
+                print(f"🔍 Trying to access '{name}' sheet with ID: {sheet_id}")
                 sheet = client.open_by_key(sheet_id)
                 data = sheet.sheet1.get_all_records()
                 results[name] = data[0] if data else None
-                print(f"✅ Accessed {name} sheet")
+                print(f"✅ Successfully accessed '{name}'")
             except Exception as e:
-                print(f"❌ Failed to access {name}: {e}")
-                raise e
+                print(f"❌ Failed to access '{name}' (ID: {sheet_id}): {e}")
+                raise e  # Stop and surface the error
 
         return jsonify({"success": True, "samples": results})
     except Exception as e:
