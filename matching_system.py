@@ -3,11 +3,14 @@ class MatchingSystem:
         pass
 
     def find_matches(self, job, candidates):
-        job_skills = set(s.strip().lower() for s in job.get("skills", "").split(","))
+        job_skills = set(skill.strip().lower() for skill in job.get("skills", "").split(","))
         matches = []
 
         for candidate in candidates:
-            candidate_skills = set(s.strip().lower() for s in candidate.get("skills", "").split(","))
+            # Try 'skills' field first, then fall back to 'profile_details'
+            raw_skills = candidate.get("skills") or candidate.get("profile_details") or ""
+            candidate_skills = set(skill.strip().lower() for skill in raw_skills.split(","))
+
             score = len(job_skills & candidate_skills)
             if score > 0:
                 matches.append({
