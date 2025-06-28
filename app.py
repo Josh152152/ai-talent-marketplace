@@ -1,14 +1,64 @@
- Update Your app.py Again
-Now that those two files are fixed, restore these lines in app.py:
-
-python
-Copied
-Edit
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+from dotenv import load_dotenv
+import gspread
+from google.oauth2.service_account import Credentials
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
 
+# Load environment variables
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app)
+
+def get_gspread_client():
+    scope = [
+        'https://spreadsheets.google.com/feeds',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    creds_path = os.getenv('GOOGLE_CREDENTIALS_PATH', '/etc/secrets/credentials.json')
+    creds = Credentials.from_service_account_file(creds_path, scopes=scope)
+    return gspread.authorize(creds)
+
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "ok", "message": "AI Talent Marketplace backend is running"})
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "healthy"})
+
+@app.route("/test_sheets", methods=["GET"])
+def test_sheets():
+    try:
+        client = get_gspread_client()
+        sheets = {
+            "candidates": os.getenv("CANDIDATES_SHEET_ID"),
+            "employers": os.getenv("EMPLOYERS_SHEET_ID"),
+            "companies": os.getenv("COMPANIES_SHEET_ID"),
+            "users": os.getenv("USERS_SHEET_ID")
+        }
+
+        results = {}
+        for name, sheet_id in sheets.items():
+            try:
+                sheet = client.open_by_key(sheet_id)
+                data = sheet.sheet1.get_all_records()
+                results[name] = data[0] if data else None
+                print(f"✅ Accessed {name} sheet")
+            except Exception as e:
+                print(f"❌ Failed to access {name}: {e}")
+                raise e
+
+        return jsonify({"success": True, "samples": results})
+    except Exception as e:
+        print(f"🔥 ERROR: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/register_user", methods=["POST"])
 def register_user():
@@ -25,3 +75,7 @@ def find_matches():
     except Exception as e:
         print(f"🔥 ERROR in /find_matches: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
