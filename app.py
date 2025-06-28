@@ -2,8 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
-import gspread
-from google.oauth2.service_account import Credentials
+from sheets import get_gspread_client  # ✅ Moved from internal to helper
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
 
@@ -12,15 +11,6 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-
-def get_gspread_client():
-    scope = [
-        'https://spreadsheets.google.com/feeds',
-        'https://www.googleapis.com/auth/drive'
-    ]
-    creds_path = os.getenv('GOOGLE_CREDENTIALS_PATH', '/etc/secrets/credentials.json')
-    creds = Credentials.from_service_account_file(creds_path, scopes=scope)
-    return gspread.authorize(creds)
 
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
@@ -57,7 +47,7 @@ def test_sheets():
 
         return jsonify({"success": True, "samples": results})
     except Exception as e:
-        print(f"🔥 ERROR: {e}")
+        print(f"🔥 ERROR in /test_sheets: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/register_user", methods=["POST"])
