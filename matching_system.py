@@ -2,14 +2,19 @@ class MatchingSystem:
     def __init__(self):
         pass
 
+    def normalize_skills(self, skills_raw):
+        if isinstance(skills_raw, str):
+            return set(skill.strip().lower() for skill in skills_raw.split(",") if skill.strip())
+        elif isinstance(skills_raw, list):
+            return set(skill.strip().lower() for skill in skills_raw if isinstance(skill, str))
+        return set()
+
     def find_matches(self, job, candidates):
-        job_skills_raw = job.get("skills", "")
-        job_skills = set(s.strip().lower() for s in job_skills_raw.split(",") if s.strip())
+        job_skills = self.normalize_skills(job.get("skills", ""))
         matches = []
 
         for candidate in candidates:
-            candidate_skills_raw = candidate.get("skills", "")
-            candidate_skills = set(s.strip().lower() for s in candidate_skills_raw.split(",") if s.strip())
+            candidate_skills = self.normalize_skills(candidate.get("skills", ""))
             score = len(job_skills & candidate_skills)
 
             if score > 0:
