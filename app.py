@@ -43,19 +43,33 @@ def health():
 @app.route("/test_sheets", methods=["GET"])
 def test_sheets():
     try:
-        sheets = get_gspread_clients()
-        candidates_data = sheets["candidates"].sheet1.get_all_records()
-        employers_data = sheets["employers"].sheet1.get_all_records()
-        companies_data = sheets["companies"].sheet1.get_all_records()
+        print("📄 Testing Google Sheet access...")
+
+        client = get_gspread_clients()
+        results = {}
+
+        for key in ["candidates", "employers", "companies", "users"]:
+            try:
+                sheet = client[key]
+                data = sheet.sheet1.get_all_records()
+                print(f"✅ Accessed '{key}' sheet: {len(data)} rows found")
+                results[key] = data[0] if data else None
+            except Exception as e:
+                print(f"❌ Error accessing '{key}' sheet: {e}")
+                raise e
+
         return jsonify({
             "success": True,
             "samples": {
-                "candidate": candidates_data[0] if candidates_data else None,
-                "job": employers_data[0] if employers_data else None,
-                "company": companies_data[0] if companies_data else None,
+                "candidate": results.get("candidates"),
+                "job": results.get("employers"),
+                "company": results.get("companies"),
+                "user": results.get("users")
             }
         })
+
     except Exception as e:
+        print(f"🔥 ERROR in /test_sheets: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/register_user", methods=["POST"])
