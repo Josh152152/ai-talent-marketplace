@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-import sys  # <== added for log flushing
+import sys
 from dotenv import load_dotenv
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
 
-# Ensure print() shows in logs
+# Ensure print() flushes immediately to logs
 sys.stdout.reconfigure(line_buffering=True)
 
 # Load environment variables
@@ -55,9 +55,13 @@ def test_sheets():
         print(f"🔥 ERROR in /test_sheets: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route("/register_user", methods=["POST"])
-def register_user():
-    return registration.register(request)
+@app.route("/register_candidate", methods=["POST"])
+def register_candidate():
+    return registration.register(request, sheet_type="candidates")
+
+@app.route("/register_job", methods=["POST"])
+def register_job():
+    return registration.register(request, sheet_type="employers")
 
 @app.route("/find_matches", methods=["POST"])
 def find_matches():
