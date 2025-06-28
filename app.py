@@ -1,10 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import sys  # <== added for log flushing
 from dotenv import load_dotenv
-from sheets import get_gspread_client  # ✅ Moved from internal to helper
+from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
+
+# Ensure print() shows in logs
+sys.stdout.reconfigure(line_buffering=True)
 
 # Load environment variables
 load_dotenv()
@@ -43,8 +47,8 @@ def test_sheets():
                 results[name] = data[0] if data else None
                 print(f"✅ Successfully accessed '{name}'")
             except Exception as e:
-                print(f"❌ Failed to access '{name}' (ID: {sheet_id}): {e}")
-                raise e  # Stop and surface the error
+                print(f"❌ Failed to access '{name}': {e}")
+                raise e
 
         return jsonify({"success": True, "samples": results})
     except Exception as e:
