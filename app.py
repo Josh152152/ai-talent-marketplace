@@ -4,9 +4,6 @@ import os
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
-from candidate_registration import CandidateRegistrationSystem
-from matching_system import MatchingSystem
 
 # Load environment variables
 load_dotenv()
@@ -23,8 +20,11 @@ def get_gspread_client():
     creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_PATH, scopes=scope)
     return gspread.authorize(creds)
 
-registration = CandidateRegistrationSystem()
-matcher = MatchingSystem()
+# Temporarily disable these until /test_sheets works
+# from candidate_registration import CandidateRegistrationSystem
+# from matching_system import MatchingSystem
+# registration = CandidateRegistrationSystem()
+# matcher = MatchingSystem()
 
 @app.route("/", methods=["GET"])
 def home():
@@ -57,7 +57,7 @@ def test_sheets():
                 results[name] = records[0] if records else None
             except Exception as e:
                 print(f"❌ Failed to open '{name}' sheet (ID: {sheet_id}): {e}")
-                raise e  # This will show up in Render logs
+                raise e
 
         return jsonify({
             "success": True,
@@ -68,21 +68,22 @@ def test_sheets():
         print(f"🔥 ERROR in /test_sheets: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route("/register_user", methods=["POST"])
-def register_user():
-    return registration.register(request)
+# Temporarily disable these routes to isolate issue
+# @app.route("/register_user", methods=["POST"])
+# def register_user():
+#     return registration.register(request)
 
-@app.route("/find_matches", methods=["POST"])
-def find_matches():
-    try:
-        job = request.json
-        client = get_gspread_client()
-        candidates = client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')).sheet1.get_all_records()
-        matches = matcher.find_matches(job, candidates)
-        return jsonify({"success": True, "matches": matches})
-    except Exception as e:
-        print(f"🔥 ERROR in /find_matches: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+# @app.route("/find_matches", methods=["POST"])
+# def find_matches():
+#     try:
+#         job = request.json
+#         client = get_gspread_client()
+#         candidates = client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')).sheet1.get_all_records()
+#         matches = matcher.find_matches(job, candidates)
+#         return jsonify({"success": True, "matches": matches})
+#     except Exception as e:
+#         print(f"🔥 ERROR in /find_matches: {e}")
+#         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
