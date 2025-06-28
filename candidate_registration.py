@@ -1,34 +1,24 @@
 import os
-import gspread
-from google.oauth2.service_account import Credentials
-from datetime import datetime
-from flask import jsonify
-from cryptography.fernet import Fernet
+from your_flask_app_file import get_gspread_client  # Adjust import path as needed
 
 class CandidateRegistrationSystem:
     def __init__(self):
-        self.scope = [
-            'https://spreadsheets.google.com/feeds',
-            'https://www.googleapis.com/auth/drive'
-        ]
-        self.secret = os.getenv("ENCRYPTION_SECRET").encode()
-        self.fernet = Fernet(self.secret)
-
-        creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "/etc/secrets/credentials.json")
-        creds = Credentials.from_service_account_file(creds_path, scopes=self.scope)
-        client = gspread.authorize(creds)
-        self.users_sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
+        pass  # No sheet access here
 
     def register(self, request):
-        data = request.json
+        data = request.get_json()
+        candidate = {
+            "name": data.get("name"),
+            "email": data.get("email"),
+            "skills": data.get("skills"),
+            "timestamp": data.get("timestamp")
+        }
+
         try:
-            encrypted_pw = self.fernet.encrypt(data["password"].encode()).decode()
-            row = [
-                data.get("email", ""), 
-                encrypted_pw,
-                datetime.now().isoformat()
-            ]
-            self.users_sheet.append_row(row)
-            return jsonify({"success": True, "message": "User registered"})
+            client = get_gspread_client()
+            sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+            sheet.append_row([candidate["name"], candidate["email"], candidate["skills"], candidate["timestamp"]])
+            return {"success": True, "message": "Candidate registered."}
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            print(f"🔥 ERROR in candidate registration: {e}")
+            return {"success": False, "error": str(e)}
