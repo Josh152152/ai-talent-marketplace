@@ -2,20 +2,21 @@ class MatchingSystem:
     def __init__(self):
         pass
 
-def find_matches():
-    try:
-        job = request.json
-        print(f"🔍 Incoming job data: {job}")
+    def find_matches(self, job, candidates):
+        job_skills = set([s.strip().lower() for s in job.get("skills", [])])
+        matches = []
 
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')).sheet1
-        candidates = sheet.get_all_records()
-        print(f"📋 Loaded {len(candidates)} candidates")
+        for candidate in candidates:
+            candidate_skills_raw = candidate.get("skills", "")
+            candidate_skills = set([s.strip().lower() for s in candidate_skills_raw.split(",")])
+            score = len(job_skills & candidate_skills)
 
-        matches = matcher.find_matches(job, candidates)
-        print(f"✅ Found {len(matches)} matches")
+            if score > 0:
+                matches.append({
+                    "name": candidate.get("name"),
+                    "email": candidate.get("email"),
+                    "match_score": score
+                })
 
-        return jsonify({"success": True, "matches": matches})
-    except Exception as e:
-        print(f"🔥 ERROR in /find_matches: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        matches.sort(key=lambda x: x["match_score"], reverse=True)
+        return matches
