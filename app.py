@@ -14,20 +14,14 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-def get_gspread_clients():
+def get_gspread_client():
     scope = [
         'https://spreadsheets.google.com/feeds',
         'https://www.googleapis.com/auth/drive'
     ]
     GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_CREDENTIALS_PATH', '/etc/secrets/credentials.json')
     creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_PATH, scopes=scope)
-    client = gspread.authorize(creds)
-    return {
-        "candidates": client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')),
-        "employers": client.open_by_key(os.getenv('EMPLOYERS_SHEET_ID')),
-        "companies": client.open_by_key(os.getenv('COMPANIES_SHEET_ID')),
-        "users": client.open_by_key(os.getenv('USERS_SHEET_ID'))
-    }
+    return gspread.authorize(creds)
 
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
@@ -44,28 +38,30 @@ def health():
 def test_sheets():
     try:
         print("📄 Testing Google Sheet access...")
+        client = get_gspread_client()
 
-        client = get_gspread_clients()
+        sheets = {
+            "candidates": os.getenv('CANDIDATES_SHEET_ID'),
+            "employers": os.getenv('EMPLOYERS_SHEET_ID'),
+            "companies": os.getenv('COMPANIES_SHEET_ID'),
+            "users": os.getenv('USERS_SHEET_ID')
+        }
+
         results = {}
 
-        for key in ["candidates", "employers", "companies", "users"]:
+        for name, sheet_id in sheets.items():
             try:
-                sheet = client[key]
-                data = sheet.sheet1.get_all_records()
-                print(f"✅ Accessed '{key}' sheet: {len(data)} rows found")
-                results[key] = data[0] if data else None
+                sheet = client.open_by_key(sheet_id)
+                records = sheet.sheet1.get_all_records()
+                print(f"✅ Accessed '{name}' ({sheet_id}): {len(records)} rows")
+                results[name] = records[0] if records else None
             except Exception as e:
-                print(f"❌ Error accessing '{key}' sheet: {e}")
-                raise e
+                print(f"❌ Failed to open '{name}' sheet (ID: {sheet_id}): {e}")
+                raise e  # Force the error to be logged and returned
 
         return jsonify({
             "success": True,
-            "samples": {
-                "candidate": results.get("candidates"),
-                "job": results.get("employers"),
-                "company": results.get("companies"),
-                "user": results.get("users")
-            }
+            "samples": results
         })
 
     except Exception as e:
@@ -80,8 +76,8 @@ def register_user():
 def find_matches():
     try:
         job = request.json
-        sheets = get_gspread_clients()
-        candidates = sheets["candidates"].sheet1.get_all_records()
+        client = get_gspread_client()
+        candidates = client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')).sheet1.get_all_records()
         matches = matcher.find_matches(job, candidates)
         return jsonify({"success": True, "matches": matches})
     except Exception as e:
@@ -90,3 +86,4 @@ def find_matches():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+    
