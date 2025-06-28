@@ -19,8 +19,9 @@ def get_gspread_clients():
         'https://spreadsheets.google.com/feeds',
         'https://www.googleapis.com/auth/drive'
     ]
+    GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_CREDENTIALS_PATH', '/etc/secrets/credentials.json')
     creds = Credentials.from_service_account_file(
-        os.getenv('GOOGLE_CREDENTIALS_PATH'),
+        GOOGLE_CREDENTIALS_PATH,
         scopes=scope
     )
     client = gspread.authorize(creds)
