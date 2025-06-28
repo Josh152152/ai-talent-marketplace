@@ -1,6 +1,6 @@
 class MatchingSystem:
     def __init__(self):
-        pass  # No sheet access here
+        pass
 
     def find_matches(self, job, candidates):
         job_skills = set(job.get("skills", []))
