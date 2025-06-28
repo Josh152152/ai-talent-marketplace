@@ -57,7 +57,7 @@ def test_sheets():
                 results[name] = records[0] if records else None
             except Exception as e:
                 print(f"❌ Failed to open '{name}' sheet (ID: {sheet_id}): {e}")
-                raise e  # Force the error to be logged and returned
+                raise e  # This will show up in Render logs
 
         return jsonify({
             "success": True,
@@ -81,9 +81,9 @@ def find_matches():
         matches = matcher.find_matches(job, candidates)
         return jsonify({"success": True, "matches": matches})
     except Exception as e:
+        print(f"🔥 ERROR in /find_matches: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-    
