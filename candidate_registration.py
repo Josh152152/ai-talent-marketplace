@@ -14,11 +14,16 @@ class CandidateRegistrationSystem:
             email = data.get("email")
             password = data.get("password")
 
+            # 🧪 Debug: received input
+            print("🧪 Registering user with email:", email)
+            print("🔐 Raw password received:", password)
+
             if not email or not password:
                 return jsonify({"success": False, "error": "Email and password are required."}), 400
 
             # ✅ Hash the password securely
             password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            print("🔐 Hashed password:", password_hash)
 
             client = get_gspread_client()
 
@@ -27,6 +32,7 @@ class CandidateRegistrationSystem:
             users = users_sheet.get_all_records()
 
             if any(row["Email"] == email for row in users):
+                print("⚠️ Email already exists in USERS sheet.")
                 return jsonify({"success": False, "error": "Email already registered."}), 400
 
             users_sheet.append_row([email, password_hash])
@@ -38,6 +44,8 @@ class CandidateRegistrationSystem:
             if email not in candidate_emails:
                 candidates_sheet.append_row([email, "", ""])  # Email | Skills | Timestamp (blank)
                 print(f"✅ Created blank profile for: {email} in CANDIDATES sheet")
+            else:
+                print(f"ℹ️ Candidate already exists in CANDIDATES sheet.")
 
             # ------------------- Secure Dashboard Link -------------------
             token = self.serializer.dumps(email)
