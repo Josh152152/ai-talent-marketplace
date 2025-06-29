@@ -1,62 +1,47 @@
 import os
+import bcrypt
 from flask import jsonify
 from sheets import get_gspread_client
-from itsdangerous import URLSafeSerializer  # ✅ NEW
+from itsdangerous import URLSafeSerializer  # ✅ Already used
 
 class CandidateRegistrationSystem:
     def __init__(self):
-        # ✅ Serializer setup (once)
         self.serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 
-    def register(self, request, sheet_type="candidates"):
+    def register(self, request):
         try:
             data = request.get_json()
-            name = data.get("name")
             email = data.get("email")
-            skills = data.get("skills")
-            timestamp = data.get("timestamp")
+            password = data.get("password")
 
-            print(f"📥 Received registration for '{sheet_type}':")
-            print(f"    - Name: {name}")
-            print(f"    - Email: {email}")
-            print(f"    - Skills: {skills}")
-            print(f"    - Timestamp: {timestamp}")
+            if not email or not password:
+                return jsonify({"success": False, "error": "Email and password are required."}), 400
+
+            # ✅ Hash the password securely
+            password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
             client = get_gspread_client()
+            sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
 
-            # Get the corresponding sheet ID
-            sheet_id_key = {
-                "candidates": "CANDIDATES_SHEET_ID",
-                "employers": "EMPLOYERS_SHEET_ID"
-            }.get(sheet_type)
+            # 🔍 Check for duplicate email
+            existing_emails = [row["Email"] for row in sheet.get_all_records()]
+            if email in existing_emails:
+                return jsonify({"success": False, "error": "Email already registered."}), 400
 
-            if not sheet_id_key:
-                raise ValueError(f"Invalid sheet type: {sheet_type}")
+            # 📝 Append to USERS sheet
+            sheet.append_row([email, password_hash])
+            print(f"✅ Registered user: {email}")
 
-            sheet_id = os.getenv(sheet_id_key)
-            print(f"📄 Using Google Sheet ID: {sheet_id}")
-
-            # Append to Google Sheet
-            sheet = client.open_by_key(sheet_id).sheet1
-            sheet.append_row([name, email, skills, timestamp])
-            print(f"✅ Appended row to '{sheet_type}' sheet successfully.")
-
-            # ✅ Generate secure profile link if candidate
-            if sheet_type == "candidates":
-                token = self.serializer.dumps(email)
-                profile_url = f"https://your-app-name.onrender.com/profile/{token}"
-                print(f"🔗 Candidate profile link: {profile_url}")
-                return jsonify({
-                    "success": True,
-                    "message": "Candidate registered.",
-                    "profile_link": profile_url
-                })
+            # 🔗 (Optional) create a secure token
+            token = self.serializer.dumps(email)
+            dashboard_link = f"https://your-app-name.onrender.com/dashboard/{token}"
 
             return jsonify({
                 "success": True,
-                "message": f"{sheet_type.capitalize()} registered."
+                "message": "Registration successful.",
+                "dashboard_link": dashboard_link
             })
 
         except Exception as e:
-            print(f"🔥 Error in register_user ({sheet_type}): {e}")
+            print(f"🔥 Error in register_user: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
