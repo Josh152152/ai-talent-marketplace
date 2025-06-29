@@ -4,6 +4,7 @@ from functools import wraps
 import os
 import sys
 from dotenv import load_dotenv
+from itsdangerous import URLSafeSerializer  # ✅ NEW
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
@@ -18,14 +19,13 @@ app = Flask(__name__)
 CORS(app)
 
 # 🔐 Set a secret key for sessions
-app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")  # Secure in .env
+app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
 # ------------------- AUTH LOGIC -------------------
 
-# ✅ Hardcoded admin credentials (can move to .env later)
 AUTHORIZED_USERS = {
     "admin@example.com": "securepassword"
 }
@@ -58,6 +58,31 @@ def login_required(f):
 @login_required
 def admin_dashboard():
     return "Welcome to the Admin Dashboard"
+
+# ------------------- ✅ CANDIDATE PROFILE VIEW -------------------
+
+serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
+
+@app.route("/profile/<token>")
+def view_candidate_profile(token):
+    try:
+        email = serializer.loads(token)
+        print(f"🔐 Decoded email from token: {email}")
+
+        client = get_gspread_client()
+        sheet_id = os.getenv("CANDIDATES_SHEET_ID")
+        sheet = client.open_by_key(sheet_id).sheet1
+        records = sheet.get_all_records()
+
+        # Match by email
+        for row in records:
+            if row.get("Email") == email:
+                return render_template("candidate_profile.html", data=row)
+
+        return "Profile not found", 404
+    except Exception as e:
+        print(f"❌ Error in /profile/<token>: {e}")
+        return "Invalid or expired profile link", 400
 
 # ------------------- EXISTING ROUTES -------------------
 
