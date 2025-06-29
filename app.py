@@ -3,7 +3,7 @@ from flask_cors import CORS
 from functools import wraps
 import os
 import sys
-import bcrypt  # ✅ NEW: for password hashing and checking
+import bcrypt  # ✅ For password hashing and checking
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
@@ -58,7 +58,7 @@ def login_required(f):
 def admin_dashboard():
     return "Welcome to the Admin Dashboard"
 
-# ------------------- ✅ CANDIDATE LOGIN (NEW) -------------------
+# ------------------- ✅ CANDIDATE LOGIN -------------------
 
 @app.route("/login_user", methods=["POST"])
 def login_user():
@@ -92,7 +92,29 @@ def login_user():
         print(f"🔥 Error in /login_user: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ------------------- ✅ CANDIDATE PROFILE VIEW -------------------
+# ------------------- ✅ CANDIDATE DASHBOARD (NEW) -------------------
+
+@app.route("/dashboard")
+@login_required
+def candidate_dashboard():
+    try:
+        email = session["user"]
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        for row in records:
+            if row.get("Email") == email:
+                return render_template("candidate_dashboard.html", data=row)
+
+        # If not yet registered, return a basic template
+        return render_template("candidate_dashboard.html", data={"Email": email, "Skills": "Not set yet"})
+
+    except Exception as e:
+        print(f"🔥 Error in /dashboard: {e}")
+        return "Dashboard error", 500
+
+# ------------------- CANDIDATE PROFILE VIEW -------------------
 
 serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 
