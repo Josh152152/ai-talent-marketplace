@@ -3,8 +3,9 @@ from flask_cors import CORS
 from functools import wraps
 import os
 import sys
+import bcrypt  # ✅ NEW: for password hashing and checking
 from dotenv import load_dotenv
-from itsdangerous import URLSafeSerializer  # ✅ NEW
+from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
@@ -17,8 +18,6 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-
-# 🔐 Set a secret key for sessions
 app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
 registration = CandidateRegistrationSystem()
@@ -59,6 +58,40 @@ def login_required(f):
 def admin_dashboard():
     return "Welcome to the Admin Dashboard"
 
+# ------------------- ✅ CANDIDATE LOGIN (NEW) -------------------
+
+@app.route("/login_user", methods=["POST"])
+def login_user():
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        password = data.get("password")
+
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required."}), 400
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
+        users = sheet.get_all_records()
+
+        for user in users:
+            if user["Email"] == email:
+                stored_hash = user["Password_Hash"]
+                if bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+                    session["user"] = email
+                    print(f"🔓 Login successful: {email}")
+                    return jsonify({"success": True, "message": "Login successful."})
+                else:
+                    print(f"🔒 Incorrect password for: {email}")
+                    return jsonify({"success": False, "error": "Incorrect password."}), 401
+
+        print(f"❌ User not found: {email}")
+        return jsonify({"success": False, "error": "User not found."}), 404
+
+    except Exception as e:
+        print(f"🔥 Error in /login_user: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # ------------------- ✅ CANDIDATE PROFILE VIEW -------------------
 
 serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
@@ -74,7 +107,6 @@ def view_candidate_profile(token):
         sheet = client.open_by_key(sheet_id).sheet1
         records = sheet.get_all_records()
 
-        # Match by email
         for row in records:
             if row.get("Email") == email:
                 return render_template("candidate_profile.html", data=row)
