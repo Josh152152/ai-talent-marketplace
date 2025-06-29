@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Candidate Dashboard</title>
+</head>
+<body>
+  <h2>Welcome, {{ data.Email }}</h2>
+
+  <p><strong>Your Current Skills:</strong> {{ data.Skills }}</p>
+
+  <form method="POST" action="/update_skills">
+    <label for="skills">Update Skills (comma-separated):</label><br><br>
+    <input type="text" name="skills" id="skills" value="{{ data.Skills }}"><br><br>
+    <button type="submit">Update</button>
+  </form>
+
+  <br>
+  <a href="/logout">Log out</a>
+</body>
+</html>
