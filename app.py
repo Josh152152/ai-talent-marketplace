@@ -228,7 +228,7 @@ def test_sheets():
 
 @app.route("/register_candidate", methods=["POST"])
 def register_candidate():
-    return registration.register(request, sheet_type="candidates")
+    return registration.register(request)
 
 @app.route("/register_job", methods=["POST"])
 def register_job():
