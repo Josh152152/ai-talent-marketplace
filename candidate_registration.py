@@ -10,47 +10,47 @@ class CandidateRegistrationSystem:
 
     def register(self, request):
         try:
-            data = request.get_json()
-            email = data.get("email")
-            password = data.get("password")
+            data = request.get_json()  # Get form data from POST request
+            name = data.get("name")  # Extract Name (candName)
+            email = data.get("email")  # Extract Email (candEmail)
+            skills = data.get("skills")  # Extract Skills (candSkills)
 
-            # 🧪 Debug: received input
-            print("🧪 Registering user with email:", email)
-            print("🔐 Raw password received:", password)
+            # Validate required fields
+            if not email or not name or not skills:
+                return jsonify({"success": False, "error": "Email, name, and skills are required."}), 400
 
-            if not email or not password:
-                return jsonify({"success": False, "error": "Email and password are required."}), 400
+            # Hash the password (password is handled in the sign-up process already, so not used here)
+            # If you are handling a new password, you could add password hashing like:
+            # password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-            # ✅ Hash the password securely
-            password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            print("🔐 Hashed password:", password_hash)
-
-            client = get_gspread_client()
+            client = get_gspread_client()  # Get the gspread client
 
             # ------------------- USERS SHEET -------------------
             users_sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
             users = users_sheet.get_all_records()
 
+            # Check if the email already exists in the Users sheet
             if any(row["Email"] == email for row in users):
-                print("⚠️ Email already exists in USERS sheet.")
                 return jsonify({"success": False, "error": "Email already registered."}), 400
 
-            users_sheet.append_row([email, password_hash])
+            # Append new user to the Users Sheet
+            # users_sheet.append_row([email, password_hash])  # Uncomment if storing password
+            users_sheet.append_row([email, "", ""])  # Assuming password is stored elsewhere (e.g., password is handled in another part of the system)
             print(f"✅ Registered user: {email} in USERS sheet")
 
             # ------------------- CANDIDATES SHEET -------------------
             candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
             candidate_emails = [row["Email"] for row in candidates_sheet.get_all_records()]
+
+            # If the email doesn't exist in the Candidates Sheet, add a new row
             if email not in candidate_emails:
-                candidates_sheet.append_row([email, "", ""])  # Email | Skills | Timestamp (blank)
-                print(f"✅ Created blank profile for: {email} in CANDIDATES sheet")
+                candidates_sheet.append_row([email, name, skills, ""])  # Email | Name | Skills | Timestamp (blank)
+                print(f"✅ Created profile for: {email} in CANDIDATES sheet")
             else:
-                print(f"ℹ️ Candidate already exists in CANDIDATES sheet.")
+                print(f"ℹ️ Candidate already exists in CANDIDATES sheet")
 
-            # ------------------- Secure Dashboard Link -------------------
-            token = self.serializer.dumps(email)
+            # Respond with success and a dashboard link
             dashboard_link = f"https://ai-talent-marketplace.onrender.com/dashboard"
-
             return jsonify({
                 "success": True,
                 "message": "Registration successful.",
