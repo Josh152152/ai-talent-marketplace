@@ -58,7 +58,7 @@ def login_required(f):
 def admin_dashboard():
     return "Welcome to the Admin Dashboard"
 
-# ------------------- ✅ CANDIDATE LOGIN -------------------
+# ------------------- ✅ CANDIDATE LOGIN (JSON API) -------------------
 
 @app.route("/login_user", methods=["POST"])
 def login_user():
@@ -92,7 +92,33 @@ def login_user():
         print(f"🔥 Error in /login_user: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ------------------- ✅ CANDIDATE DASHBOARD (NEW) -------------------
+# ------------------- ✅ CANDIDATE LOGIN (FORM) -------------------
+
+@app.route("/candidate_login", methods=["GET", "POST"])
+def candidate_login_form():
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
+        users = sheet.get_all_records()
+
+        for user in users:
+            if user["Email"] == email:
+                stored_hash = user["Password_Hash"]
+                if bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+                    session["user"] = email
+                    print(f"🔓 Form login successful: {email}")
+                    return redirect("/dashboard")
+                else:
+                    return "Incorrect password", 401
+
+        return "User not found", 404
+
+    return render_template("candidate_login.html")
+
+# ------------------- ✅ CANDIDATE DASHBOARD -------------------
 
 @app.route("/dashboard")
 @login_required
