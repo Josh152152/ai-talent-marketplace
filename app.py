@@ -3,7 +3,7 @@ from flask_cors import CORS
 from functools import wraps
 import os
 import sys
-import bcrypt  # ✅ For password hashing and checking
+import bcrypt
 from dotenv import load_dotenv
 from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
@@ -133,12 +133,36 @@ def candidate_dashboard():
             if row.get("Email") == email:
                 return render_template("candidate_dashboard.html", data=row)
 
-        # If not yet registered, return a basic template
         return render_template("candidate_dashboard.html", data={"Email": email, "Skills": "Not set yet"})
 
     except Exception as e:
         print(f"🔥 Error in /dashboard: {e}")
         return "Dashboard error", 500
+
+# ------------------- ✅ CANDIDATE SKILL UPDATE -------------------
+
+@app.route("/update_skills", methods=["POST"])
+@login_required
+def update_skills():
+    try:
+        email = session["user"]
+        new_skills = request.form.get("skills", "")
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        for i, row in enumerate(records):
+            if row.get("Email") == email:
+                sheet.update_cell(i + 2, 3, new_skills)  # Column 3 = Skills
+                print(f"✅ Updated skills for {email}")
+                return redirect("/dashboard")
+
+        return "Candidate not found.", 404
+
+    except Exception as e:
+        print(f"🔥 Error in /update_skills: {e}")
+        return "Internal server error", 500
 
 # ------------------- CANDIDATE PROFILE VIEW -------------------
 
