@@ -2,11 +2,12 @@ import os
 import requests
 import re
 
+# 🔐 Load Adzuna credentials from environment
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
-ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "us")
+ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "us")  # e.g., 'us', 'gb', etc.
 
-# 🔁 Optional: Mapping generic skills to common roles
+# 🔁 Map technical keywords to likely job titles
 KEYWORD_TO_ROLE = {
     "html": "frontend developer",
     "css": "frontend developer",
@@ -23,19 +24,19 @@ KEYWORD_TO_ROLE = {
 
 def clean_keywords(text):
     """
-    Clean and normalize skills/summary to extract search-friendly keywords.
+    Normalize input text (skills/summary) into unique lowercase keywords.
     """
     if not text:
         return []
     text = text.lower()
-    text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
-    keywords = re.findall(r"\b\w{3,}\b", text)  # keep words with 3+ letters
+    text = re.sub(r"[^\w\s]", "", text)
+    keywords = re.findall(r"\b\w{3,}\b", text)
     return list(set(keywords))
 
 
 def map_keywords_to_roles(keywords):
     """
-    Map raw skill keywords to likely job titles.
+    Convert keyword list into job role suggestions.
     """
     roles = [KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE]
     return list(set(roles))
@@ -43,7 +44,7 @@ def map_keywords_to_roles(keywords):
 
 def query_jobs(keywords, location, max_results=20):
     """
-    Query Adzuna API using cleaned keywords and mapped roles.
+    Use cleaned/mapped keywords to query Adzuna job search API.
     """
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
@@ -85,6 +86,7 @@ def query_jobs(keywords, location, max_results=20):
                 "status": response.status_code,
                 "details": response.text
             }
+
     except Exception as e:
         print(f"🔥 Exception during Adzuna request: {e}")
         return {"error": str(e)}
