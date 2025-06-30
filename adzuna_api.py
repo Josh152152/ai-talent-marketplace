@@ -2,12 +2,11 @@ import os
 import requests
 import re
 
-# 🔐 Load Adzuna credentials from environment
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
-ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "us")  # e.g., 'us', 'gb', etc.
+ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "us")
 
-# 🔁 Map technical keywords to likely job titles
+# 🔁 Optional: Mapping generic skills to common roles
 KEYWORD_TO_ROLE = {
     "html": "frontend developer",
     "css": "frontend developer",
@@ -21,30 +20,27 @@ KEYWORD_TO_ROLE = {
     "java": "backend developer",
 }
 
-
 def clean_keywords(text):
     """
-    Normalize input text (skills/summary) into unique lowercase keywords.
+    Clean and normalize skills/summary to extract search-friendly keywords.
     """
     if not text:
         return []
     text = text.lower()
-    text = re.sub(r"[^\w\s]", "", text)
-    keywords = re.findall(r"\b\w{3,}\b", text)
+    text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
+    keywords = re.findall(r"\b\w{3,}\b", text)  # keep words with 3+ letters
     return list(set(keywords))
-
 
 def map_keywords_to_roles(keywords):
     """
-    Convert keyword list into job role suggestions.
+    Map raw skill keywords to likely job titles.
     """
     roles = [KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE]
     return list(set(roles))
 
-
 def query_jobs(keywords, location, max_results=20):
     """
-    Use cleaned/mapped keywords to query Adzuna job search API.
+    Query Adzuna API using cleaned keywords and mapped roles.
     """
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
@@ -52,7 +48,9 @@ def query_jobs(keywords, location, max_results=20):
     cleaned_keywords = clean_keywords(keywords)
     role_keywords = map_keywords_to_roles(cleaned_keywords)
 
-    search_terms = " ".join(role_keywords[:5]) if role_keywords else " ".join(cleaned_keywords[:5])
+    # ✅ Combine roles and raw keywords to cast a wider net
+    combined_terms = list(set(role_keywords + cleaned_keywords))
+    search_terms = " ".join(combined_terms[:7])  # limit to top 7 terms
 
     print("🔍 Adzuna Search Query:", search_terms)
     print("📍 Location:", location)
@@ -86,7 +84,6 @@ def query_jobs(keywords, location, max_results=20):
                 "status": response.status_code,
                 "details": response.text
             }
-
     except Exception as e:
         print(f"🔥 Exception during Adzuna request: {e}")
         return {"error": str(e)}
