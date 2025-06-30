@@ -9,6 +9,7 @@ from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
+from adzuna_api import query_jobs  # ✅ NEW IMPORT
 
 # Ensure print() flushes immediately to logs
 sys.stdout.reconfigure(line_buffering=True)
@@ -164,7 +165,7 @@ def update_skills():
         print(f"🔥 Error in /update_skills: {e}")
         return "Internal server error", 500
 
-# ------------------- CANDIDATE PROFILE VIEW -------------------
+# ------------------- ✅ CANDIDATE PROFILE VIEW -------------------
 
 serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 
@@ -188,7 +189,43 @@ def view_candidate_profile(token):
         print(f"❌ Error in /profile/<token>: {e}")
         return "Invalid or expired profile link", 400
 
-# ------------------- EXISTING ROUTES -------------------
+# ------------------- ✅ ADZUNA MATCHING ENDPOINT -------------------
+
+@app.route("/adzuna_match", methods=["POST"])
+def adzuna_match():
+    try:
+        data = request.get_json()
+        email = data.get("email")
+
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        candidate = next((r for r in records if r["Email"] == email), None)
+        if not candidate:
+            return jsonify({"error": "Candidate not found"}), 404
+
+        location = candidate.get("Location", "")
+        skills = candidate.get("Skills", "")
+        summary = candidate.get("Summary", "")
+        keywords = f"{skills} {summary}".strip()
+
+        adzuna_result = query_jobs(keywords=keywords, location=location)
+
+        return jsonify({
+            "matches_found": adzuna_result.get("count", 0),
+            "example_titles": adzuna_result.get("examples", []),
+            "location": location
+        })
+
+    except Exception as e:
+        print(f"🔥 Error in /adzuna_match: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ------------------- SYSTEM ROUTES -------------------
 
 @app.route("/", methods=["GET"])
 def home():
