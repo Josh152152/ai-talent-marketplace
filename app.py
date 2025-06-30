@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, redirect, render_template
+from flask import Flask, request, jsonify, session, redirect, render_template, jsonify
 from flask_cors import CORS
 from functools import wraps
 import os
@@ -236,4 +236,4 @@ def home():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return json
+    return jsonify({"status": "healthy"})
