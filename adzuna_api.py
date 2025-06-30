@@ -5,7 +5,6 @@ import re
 # Load credentials from environment
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
-ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "gb")  # Use "us" or "gb"
 
 # 🔁 Map skills to likely job titles
 KEYWORD_TO_ROLE = {
@@ -39,12 +38,29 @@ def map_keywords_to_roles(keywords):
     """
     return list(set(KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE))
 
+def detect_country(location):
+    """
+    Simple heuristic to decide country code for Adzuna API based on location string.
+    """
+    if not location:
+        return "gb"  # default fallback
+
+    loc = location.lower()
+    us_cities = ["new york", "san francisco", "los angeles", "chicago", "seattle", "boston", "austin", "washington"]
+
+    if any(city in loc for city in us_cities) or "united states" in loc or "usa" in loc:
+        return "us"
+    else:
+        return "gb"
+
 def query_jobs(keywords, location="London", max_results=10):
     """
-    Query Adzuna API with cleaned and mapped search terms.
+    Query Adzuna API with cleaned and mapped search terms and dynamic country.
     """
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
+
+    country_code = detect_country(location)
 
     # Clean and map
     keyword_list = clean_keywords(keywords)
@@ -55,15 +71,15 @@ def query_jobs(keywords, location="London", max_results=10):
 
     print("🔍 Adzuna Search Query:", search_terms)
     print("📍 Location:", location)
+    print("🌍 Using country code:", country_code)
 
-    url = f"https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/1"
+    url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
     params = {
         "app_id": ADZUNA_APP_ID,
         "app_key": ADZUNA_APP_KEY,
         "what": search_terms,
         "where": location,
         "results_per_page": max_results,
-        "content-type": "application/json"
     }
 
     print("📡 Full API URL:", url + "?" + "&".join([f"{k}={v}" for k, v in params.items()]))
