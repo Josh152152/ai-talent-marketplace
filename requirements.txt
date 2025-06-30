@@ -7,3 +7,6 @@ cryptography==41.0.7
 gunicorn==21.2.0
 itsdangerous
 bcrypt
+openai
+scikit-learn
+numpy
