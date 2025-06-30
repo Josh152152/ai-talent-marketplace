@@ -9,12 +9,12 @@ from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
-from adzuna_api import query_jobs  # ✅ NEW IMPORT
+from adzuna_api import query_jobs
+from smart_matcher import match_jobs, suggest_missing_skills  # ✅ NEW
 
 # Ensure print() flushes immediately to logs
 sys.stdout.reconfigure(line_buffering=True)
 
-# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
@@ -24,11 +24,9 @@ app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
-# ------------------- AUTH LOGIC -------------------
+# ------------------- AUTH -------------------
 
-AUTHORIZED_USERS = {
-    "admin@example.com": "securepassword"
-}
+AUTHORIZED_USERS = {"admin@example.com": "securepassword"}
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -59,7 +57,7 @@ def login_required(f):
 def admin_dashboard():
     return "Welcome to the Admin Dashboard"
 
-# ------------------- ✅ CANDIDATE LOGIN (JSON API) -------------------
+# ------------------- CANDIDATE LOGIN -------------------
 
 @app.route("/login_user", methods=["POST"])
 def login_user():
@@ -83,17 +81,12 @@ def login_user():
                     print(f"🔓 Login successful: {email}")
                     return jsonify({"success": True, "message": "Login successful."})
                 else:
-                    print(f"🔒 Incorrect password for: {email}")
                     return jsonify({"success": False, "error": "Incorrect password."}), 401
-
-        print(f"❌ User not found: {email}")
         return jsonify({"success": False, "error": "User not found."}), 404
 
     except Exception as e:
         print(f"🔥 Error in /login_user: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-
-# ------------------- ✅ CANDIDATE LOGIN (FORM) -------------------
 
 @app.route("/candidate_login", methods=["GET", "POST"])
 def candidate_login_form():
@@ -110,7 +103,6 @@ def candidate_login_form():
                 stored_hash = user["Password_Hash"]
                 if bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
                     session["user"] = email
-                    print(f"🔓 Form login successful: {email}")
                     return redirect("/dashboard")
                 else:
                     return "Incorrect password", 401
@@ -119,7 +111,7 @@ def candidate_login_form():
 
     return render_template("candidate_login.html")
 
-# ------------------- ✅ CANDIDATE DASHBOARD -------------------
+# ------------------- CANDIDATE DASHBOARD -------------------
 
 @app.route("/dashboard")
 @login_required
@@ -140,8 +132,6 @@ def candidate_dashboard():
         print(f"🔥 Error in /dashboard: {e}")
         return "Dashboard error", 500
 
-# ------------------- ✅ CANDIDATE SKILL UPDATE -------------------
-
 @app.route("/update_skills", methods=["POST"])
 @login_required
 def update_skills():
@@ -156,7 +146,6 @@ def update_skills():
         for i, row in enumerate(records):
             if row.get("Email") == email:
                 sheet.update_cell(i + 2, 3, new_skills)  # Column 3 = Skills
-                print(f"✅ Updated skills for {email}")
                 return redirect("/dashboard")
 
         return "Candidate not found.", 404
@@ -165,7 +154,7 @@ def update_skills():
         print(f"🔥 Error in /update_skills: {e}")
         return "Internal server error", 500
 
-# ------------------- ✅ CANDIDATE PROFILE VIEW -------------------
+# ------------------- CANDIDATE PROFILE -------------------
 
 serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 
@@ -173,11 +162,9 @@ serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 def view_candidate_profile(token):
     try:
         email = serializer.loads(token)
-        print(f"🔐 Decoded email from token: {email}")
 
         client = get_gspread_client()
-        sheet_id = os.getenv("CANDIDATES_SHEET_ID")
-        sheet = client.open_by_key(sheet_id).sheet1
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         records = sheet.get_all_records()
 
         for row in records:
@@ -189,7 +176,7 @@ def view_candidate_profile(token):
         print(f"❌ Error in /profile/<token>: {e}")
         return "Invalid or expired profile link", 400
 
-# ------------------- ✅ ADZUNA MATCHING ENDPOINT -------------------
+# ------------------- ✅ ADZUNA AI MATCHING -------------------
 
 @app.route("/adzuna_match", methods=["POST"])
 def adzuna_match():
@@ -213,16 +200,32 @@ def adzuna_match():
         summary = candidate.get("Summary", "")
         keywords = f"{skills} {summary}".strip()
 
-        adzuna_result = query_jobs(keywords=keywords, location=location)
+        adzuna_result = query_jobs(keywords=skills, location=location)
+        job_titles = adzuna_result.get("examples", [])
+
+        if not job_titles:
+            return jsonify({
+                "matches_found": 0,
+                "location": location,
+                "top_matches": [],
+                "missing_skills": [],
+                "message": "No matching jobs found."
+            })
+
+        top_matches = match_jobs(keywords, job_titles)
+        match_titles = [title for title, score in top_matches]
+        top_job_text = match_titles[0] if match_titles else ""
+        missing_skills = suggest_missing_skills(skills, top_job_text)
 
         return jsonify({
-            "matches_found": adzuna_result.get("count", 0),
-            "example_titles": adzuna_result.get("examples", []),
-            "location": location
+            "matches_found": len(match_titles),
+            "top_matches": match_titles,
+            "location": location,
+            "missing_skills": missing_skills
         })
 
     except Exception as e:
-        print(f"🔥 Error in /adzuna_match: {e}")
+        print(f"🔥 Error in /adzuna_match (AI): {e}")
         return jsonify({"error": str(e)}), 500
 
 # ------------------- SYSTEM ROUTES -------------------
@@ -233,58 +236,4 @@ def home():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "healthy"})
-
-@app.route("/test_sheets", methods=["GET"])
-def test_sheets():
-    try:
-        client = get_gspread_client()
-        sheets = {
-            "candidates": os.getenv("CANDIDATES_SHEET_ID"),
-            "employers": os.getenv("EMPLOYERS_SHEET_ID"),
-            "companies": os.getenv("COMPANIES_SHEET_ID"),
-            "users": os.getenv("USERS_SHEET_ID")
-        }
-
-        results = {}
-        for name, sheet_id in sheets.items():
-            try:
-                print(f"🔍 Trying to access '{name}' sheet with ID: {sheet_id}")
-                sheet = client.open_by_key(sheet_id)
-                data = sheet.sheet1.get_all_records()
-                results[name] = data[0] if data else None
-                print(f"✅ Successfully accessed '{name}'")
-            except Exception as e:
-                print(f"❌ Failed to access '{name}': {e}")
-                raise e
-
-        return jsonify({"success": True, "samples": results})
-    except Exception as e:
-        print(f"🔥 ERROR in /test_sheets: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/register_candidate", methods=["POST"])
-def register_candidate():
-    return registration.register(request)
-
-@app.route("/register_job", methods=["POST"])
-def register_job():
-    return registration.register(request, sheet_type="employers")
-
-@app.route("/find_matches", methods=["POST"])
-def find_matches():
-    try:
-        job = request.json
-        client = get_gspread_client()
-        candidates = client.open_by_key(os.getenv('CANDIDATES_SHEET_ID')).sheet1.get_all_records()
-        matches = matcher.find_matches(job, candidates)
-        return jsonify({"success": True, "matches": matches})
-    except Exception as e:
-        print(f"🔥 ERROR in /find_matches: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-# ------------------- RUN APP -------------------
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    return json
