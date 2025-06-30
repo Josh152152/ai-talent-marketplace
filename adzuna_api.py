@@ -2,60 +2,61 @@ import os
 import requests
 import re
 
+# Load credentials from environment
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
-ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "gb")
+ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "gb")  # Use "us" or "gb"
 
-# 🔁 Optional: Mapping generic skills to common roles
+# 🔁 Map skills to likely job titles
 KEYWORD_TO_ROLE = {
     "html": "frontend developer",
     "css": "frontend developer",
     "javascript": "frontend developer",
-    "python": "software engineer",
-    "sql": "data analyst",
     "react": "frontend developer",
-    "aws": "cloud engineer",
+    "python": "software engineer",
     "django": "python developer",
+    "flask": "python developer",
+    "sql": "data analyst",
+    "aws": "cloud engineer",
     "node": "backend developer",
     "java": "backend developer",
+    "api": "backend developer"
 }
 
 def clean_keywords(text):
     """
-    Clean and normalize skills/summary to extract search-friendly keywords.
+    Extract normalized, alphanumeric keywords.
     """
     if not text:
         return []
     text = text.lower()
-    text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
-    keywords = re.findall(r"\b\w{3,}\b", text)  # keep words with 3+ letters
-    return list(set(keywords))
+    text = re.sub(r"[^\w\s]", "", text)
+    return list(set(re.findall(r"\b\w{3,}\b", text)))
 
 def map_keywords_to_roles(keywords):
     """
-    Map raw skill keywords to likely job titles.
+    Translate keywords to job roles if applicable.
     """
-    roles = [KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE]
-    return list(set(roles))
+    return list(set(KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE))
 
-def query_jobs(keywords, location, max_results=20):
+def query_jobs(keywords, location="London", max_results=10):
     """
-    Query Adzuna API using cleaned keywords and mapped roles.
+    Query Adzuna API with cleaned and mapped search terms.
     """
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
 
-    cleaned_keywords = clean_keywords(keywords)
-    role_keywords = map_keywords_to_roles(cleaned_keywords)
+    # Clean and map
+    keyword_list = clean_keywords(keywords)
+    role_terms = map_keywords_to_roles(keyword_list)
 
-    # ✅ Combine and format with OR logic for broader matching
-    combined_terms = list(set(role_keywords + cleaned_keywords))
-    search_terms = " OR ".join(combined_terms[:7])  # limit to 7 terms
+    # Prefer role terms, fallback to keywords
+    search_terms = " ".join(role_terms[:3]) if role_terms else " ".join(keyword_list[:3])
 
     print("🔍 Adzuna Search Query:", search_terms)
     print("📍 Location:", location)
 
-    base_url = f"https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/1"
+    url = f"https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/1"
     params = {
         "app_id": ADZUNA_APP_ID,
         "app_key": ADZUNA_APP_KEY,
@@ -65,9 +66,10 @@ def query_jobs(keywords, location, max_results=20):
         "content-type": "application/json"
     }
 
+    print("📡 Full API URL:", url + "?" + "&".join([f"{k}={v}" for k, v in params.items()]))
+
     try:
-        response = requests.get(base_url, params=params)
-        print("📡 Full API URL:", response.url)
+        response = requests.get(url, params=params)
         if response.status_code == 200:
             data = response.json()
             print("🧾 Raw Adzuna result count:", data.get("count", 0))
