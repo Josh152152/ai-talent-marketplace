@@ -4,7 +4,7 @@ import re
 
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
-ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "us")
+ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY", "gb")
 
 # 🔁 Optional: Mapping generic skills to common roles
 KEYWORD_TO_ROLE = {
