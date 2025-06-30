@@ -46,6 +46,10 @@ def query_jobs(keywords, location, max_results=20):
         response = requests.get(base_url, params=params)
         if response.status_code == 200:
             data = response.json()
+            print("🧾 Raw Adzuna result count:", data.get("count", 0))
+print("📦 Raw job titles:")
+for job in data.get("results", []):
+    print("-", job.get("title"))
             return {
                 "count": data.get("count", 0),
                 "examples": [job["title"] for job in data.get("results", [])]
