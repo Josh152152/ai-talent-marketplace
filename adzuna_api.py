@@ -48,9 +48,9 @@ def query_jobs(keywords, location, max_results=20):
     cleaned_keywords = clean_keywords(keywords)
     role_keywords = map_keywords_to_roles(cleaned_keywords)
 
-    # ✅ Combine roles and raw keywords to cast a wider net
+    # ✅ Combine and format with OR logic for broader matching
     combined_terms = list(set(role_keywords + cleaned_keywords))
-    search_terms = " ".join(combined_terms[:7])  # limit to top 7 terms
+    search_terms = " OR ".join(combined_terms[:7])  # limit to 7 terms
 
     print("🔍 Adzuna Search Query:", search_terms)
     print("📍 Location:", location)
@@ -67,6 +67,7 @@ def query_jobs(keywords, location, max_results=20):
 
     try:
         response = requests.get(base_url, params=params)
+        print("📡 Full API URL:", response.url)
         if response.status_code == 200:
             data = response.json()
             print("🧾 Raw Adzuna result count:", data.get("count", 0))
