@@ -1,5 +1,3 @@
-# adzuna_api.py
-
 import os
 import requests
 import re
@@ -13,6 +11,8 @@ def clean_keywords(text):
     """
     Clean and normalize skills/summary to extract search-friendly keywords.
     """
+    if not text:
+        return []
     text = text.lower()
     text = re.sub(r"[^\w\s]", "", text)  # remove punctuation
     keywords = re.findall(r"\b\w{3,}\b", text)  # keep words with 3+ letters
@@ -21,13 +21,16 @@ def clean_keywords(text):
 
 def query_jobs(keywords, location, max_results=20):
     """
-    Query Adzuna with smart extracted keywords.
+    Query Adzuna with smart extracted keywords and location.
     """
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
 
     cleaned_keywords = clean_keywords(keywords)
-    search_terms = " ".join(cleaned_keywords[:5])  # limit for now
+    search_terms = " ".join(cleaned_keywords[:5])  # Limit to top 5
+
+    print("🔍 Adzuna Search Query:", search_terms)
+    print("📍 Location:", location)
 
     base_url = f"https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/1"
     params = {
@@ -39,13 +42,21 @@ def query_jobs(keywords, location, max_results=20):
         "content-type": "application/json"
     }
 
-    response = requests.get(base_url, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        return {
-            "count": data.get("count", 0),
-            "examples": [job["title"] for job in data.get("results", [])]
-        }
-    else:
-        print("❌ Adzuna API error:", response.status_code, response.text)
-        return {"error": "Adzuna API request failed", "status": response.status_code}
+    try:
+        response = requests.get(base_url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "count": data.get("count", 0),
+                "examples": [job["title"] for job in data.get("results", [])]
+            }
+        else:
+            print("❌ Adzuna API error:", response.status_code, response.text)
+            return {
+                "error": "Adzuna API request failed",
+                "status": response.status_code,
+                "details": response.text
+            }
+    except Exception as e:
+        print(f"🔥 Exception during Adzuna request: {e}")
+        return {"error": str(e)}
