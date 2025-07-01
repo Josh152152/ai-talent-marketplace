@@ -9,7 +9,7 @@ from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
-from adzuna_api import query_jobs
+from adzuna_helper import query_jobs
 from smart_matcher import match_jobs, suggest_missing_skills  # ✅ NEW
 
 # Ensure print() flushes immediately to logs
