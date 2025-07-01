@@ -11,6 +11,9 @@ from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
 from smart_matcher import match_jobs, suggest_missing_skills  # embedding-based matcher
 
+# Import query_jobs from your renamed helper, e.g. adzuna_helper.py (avoid circular import)
+from adzuna_helper import query_jobs  # <-- rename your adzuna_api.py to adzuna_helper.py
+
 sys.stdout.reconfigure(line_buffering=True)
 load_dotenv()
 
@@ -23,7 +26,7 @@ matcher = MatchingSystem()
 
 serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 
-# Your existing auth and routes here...
+# Authentication and other routes here...
 
 # ------------------- ADZUNA MATCH (AI) -------------------
 
@@ -81,4 +84,9 @@ def adzuna_match():
         print(f"🔥 Error in /adzuna_match (AI): {e}")
         return jsonify({"error": str(e)}), 500
 
-# Other routes and app.run() as before...
+# ...other routes...
+
+# At the bottom, run your app
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
