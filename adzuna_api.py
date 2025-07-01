@@ -1,157 +1,85 @@
+from flask import Flask, request, jsonify, session, redirect, render_template
+from flask_cors import CORS
+from functools import wraps
 import os
-import requests
-import re
-import datetime
+import sys
+import bcrypt
+from dotenv import load_dotenv
+from itsdangerous import URLSafeSerializer
+from sheets import get_gspread_client
+from candidate_registration import CandidateRegistrationSystem
+from matching_system import MatchingSystem
+from adzuna_api import query_jobs
+from smart_matcher import match_jobs, suggest_missing_skills  # embedding-based matcher
 
-# Load credentials from environment
-ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
-ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
+sys.stdout.reconfigure(line_buffering=True)
+load_dotenv()
 
-# 🔁 Map skills to likely job titles
-KEYWORD_TO_ROLE = {
-    "html": "frontend developer",
-    "css": "frontend developer",
-    "javascript": "frontend developer",
-    "react": "frontend developer",
-    "python": "software engineer",
-    "django": "python developer",
-    "flask": "python developer",
-    "sql": "data analyst",
-    "aws": "cloud engineer",
-    "node": "backend developer",
-    "java": "backend developer",
-    "api": "backend developer"
-}
+app = Flask(__name__)
+CORS(app)
+app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
-def clean_keywords(text):
-    """
-    Extract normalized, alphanumeric keywords.
-    """
-    if not text:
-        return []
-    text = text.lower()
-    text = re.sub(r"[^\w\s]", "", text)
-    return list(set(re.findall(r"\b\w{3,}\b", text)))
+registration = CandidateRegistrationSystem()
+matcher = MatchingSystem()
 
-def map_keywords_to_roles(keywords):
-    """
-    Translate keywords to job roles if applicable.
-    """
-    return list(set(KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE))
+serializer = URLSafeSerializer(os.getenv("APP_SECRET_KEY", "default-secret"))
 
-def detect_country(location):
-    """
-    Simple heuristic to decide country code for Adzuna API based on location string.
-    """
-    if not location:
-        return "gb"  # default fallback
+# Your existing auth and routes here...
 
-    loc = location.lower()
-    us_cities = ["new york", "san francisco", "los angeles", "chicago", "seattle", "boston", "austin", "washington"]
+# ------------------- ADZUNA MATCH (AI) -------------------
 
-    if any(city in loc for city in us_cities) or "united states" in loc or "usa" in loc:
-        return "us"
-    else:
-        return "gb"
-
-def query_jobs(keywords, location="London", max_results=10):
-    """
-    Query Adzuna API with cleaned and mapped search terms and dynamic country.
-    """
-    if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-        return {"error": "Missing Adzuna credentials"}
-
-    country_code = detect_country(location)
-
-    # Clean and map
-    keyword_list = clean_keywords(keywords)
-    role_terms = map_keywords_to_roles(keyword_list)
-
-    # Prefer role terms, fallback to keywords
-    search_terms = " ".join(role_terms[:3]) if role_terms else " ".join(keyword_list[:3])
-
-    print("🔍 Adzuna Search Query:", search_terms)
-    print("📍 Location:", location)
-    print("🌍 Using country code:", country_code)
-
-    url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
-    params = {
-        "app_id": ADZUNA_APP_ID,
-        "app_key": ADZUNA_APP_KEY,
-        "what": search_terms,
-        "where": location,
-        "results_per_page": max_results,
-    }
-
-    print("📡 Full API URL:", url + "?" + "&".join([f"{k}={v}" for k, v in params.items()]))
-
+@app.route("/adzuna_match", methods=["POST"])
+def adzuna_match():
     try:
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            data = response.json()
-            print("🧾 Raw Adzuna result count:", data.get("count", 0))
-            print("📦 Raw job titles:")
-            for job in data.get("results", []):
-                print("-", job.get("title"))
-            return {
-                "count": data.get("count", 0),
-                "examples": [
-                    {"title": job["title"], "url": job.get("redirect_url", "")}
-                    for job in data.get("results", [])
-                ]
-            }
-        else:
-            print("❌ Adzuna API error:", response.status_code, response.text)
-            return {
-                "error": "Adzuna API request failed",
-                "status": response.status_code,
-                "details": response.text
-            }
+        data = request.get_json()
+        email = data.get("email")
+
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        candidate = next((r for r in records if r["Email"] == email), None)
+        if not candidate:
+            return jsonify({"error": "Candidate not found"}), 404
+
+        location = candidate.get("Location", "")
+        skills = candidate.get("Skills", "")
+        summary = candidate.get("Summary", "")
+        keywords = f"{skills} {summary}".strip()
+
+        # Query Adzuna API for jobs
+        adzuna_result = query_jobs(keywords=keywords, location=location)
+        # adzuna_result['examples'] is a list of dicts {title, url}
+
+        job_titles = [job["title"] for job in adzuna_result.get("examples", [])]
+
+        if not job_titles:
+            return jsonify({
+                "matches_found": 0,
+                "location": location,
+                "top_matches": [],
+                "missing_skills": [],
+                "message": "No matching jobs found."
+            })
+
+        # Use embedding-based matcher on candidate's full keywords and job titles
+        top_matches = match_jobs(keywords, job_titles)
+        match_titles = [title for title, score in top_matches]
+        top_job_text = match_titles[0] if match_titles else ""
+        missing_skills = suggest_missing_skills(skills, top_job_text)
+
+        return jsonify({
+            "matches_found": len(match_titles),
+            "top_matches": match_titles,
+            "location": location,
+            "missing_skills": missing_skills
+        })
+
     except Exception as e:
-        print(f"🔥 Exception during Adzuna request: {e}")
-        return {"error": str(e)}
+        print(f"🔥 Error in /adzuna_match (AI): {e}")
+        return jsonify({"error": str(e)}), 500
 
-def get_monthly_job_counts(keywords, location, months=6):
-    """
-    Get job counts per month for last N months to show trending demand.
-    """
-    if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-        return []
-
-    country_code = detect_country(location)
-    base_url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
-    counts = []
-    today = datetime.date.today()
-
-    for i in range(months):
-        # Calculate first and last day of target month
-        first_of_month = (today.replace(day=1) - datetime.timedelta(days=30*i))
-        start = first_of_month.isoformat()
-        next_month = first_of_month + datetime.timedelta(days=32)
-        last_of_month = next_month.replace(day=1) - datetime.timedelta(days=1)
-        end = last_of_month.isoformat()
-
-        params = {
-            "app_id": ADZUNA_APP_ID,
-            "app_key": ADZUNA_APP_KEY,
-            "what": keywords,
-            "where": location,
-            "results_per_page": 1,
-            "content-type": "application/json",
-            "date_posted_min": start,
-            "date_posted_max": end,
-        }
-
-        try:
-            response = requests.get(base_url, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                counts.append({"month": start[:7], "count": data.get("count", 0)})
-            else:
-                counts.append({"month": start[:7], "count": 0})
-        except Exception as e:
-            print(f"🔥 Exception during monthly count request: {e}")
-            counts.append({"month": start[:7], "count": 0})
-
-    counts.reverse()  # Oldest first
-    return counts
+# Other routes and app.run() as before...
