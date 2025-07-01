@@ -9,7 +9,6 @@ from itsdangerous import URLSafeSerializer
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
-from adzuna_api import query_jobs
 from smart_matcher import match_jobs, suggest_missing_skills  # embedding-based matcher
 
 sys.stdout.reconfigure(line_buffering=True)
