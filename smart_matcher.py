@@ -10,10 +10,10 @@ def get_embedding(text, model="text-embedding-3-large"):
     """
     Get embedding vector from OpenAI using the new API.
     """
-    response = client.embeddings.create(
-        model=model,
-        input=text
-    )
+response = openai.Embedding.create(
+    input=text,
+    model="text-embedding-3-small"  # or your model
+)
     return response.data[0].embedding
 
 def match_jobs(candidate_text, job_titles):
