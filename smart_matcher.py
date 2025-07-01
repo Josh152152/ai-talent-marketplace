@@ -11,8 +11,8 @@ def get_embedding(text, model="text-embedding-3-large"):
     Get embedding vector from OpenAI using the new API.
     """
     response = client.embeddings.create(
-        input=text,
-        model=model  # use the argument passed or default
+        model=model,    # use the argument passed or default
+        input=text
     )
     return response.data[0].embedding
 
