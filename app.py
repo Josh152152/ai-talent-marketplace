@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, redirect, render_template, jsonify
+from flask import Flask, request, jsonify, session, redirect, render_template
 from flask_cors import CORS
 from functools import wraps
 import os
