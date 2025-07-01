@@ -19,7 +19,7 @@ def match_jobs(candidate_text, job_titles):
     Compare candidate profile text to job titles, return top 5 matches by cosine similarity.
     """
     cand_emb = get_embedding(candidate_text)
-    job_embeddings = [get_embedding(title) for title in job_titles]
+    job_embeddings = [get_embedding(title['title']) if isinstance(title, dict) else get_embedding(title) for title in job_titles]
 
     similarities = cosine_similarity([cand_emb], job_embeddings)[0]
     scored = list(zip(job_titles, similarities))
