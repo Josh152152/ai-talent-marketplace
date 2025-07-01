@@ -1,6 +1,7 @@
 import os
 import requests
 import re
+import datetime
 
 # Load credentials from environment
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
@@ -94,7 +95,10 @@ def query_jobs(keywords, location="London", max_results=10):
                 print("-", job.get("title"))
             return {
                 "count": data.get("count", 0),
-                "examples": [job["title"] for job in data.get("results", [])]
+                "examples": [
+                    {"title": job["title"], "url": job.get("redirect_url", "")}
+                    for job in data.get("results", [])
+                ]
             }
         else:
             print("❌ Adzuna API error:", response.status_code, response.text)
@@ -106,3 +110,48 @@ def query_jobs(keywords, location="London", max_results=10):
     except Exception as e:
         print(f"🔥 Exception during Adzuna request: {e}")
         return {"error": str(e)}
+
+def get_monthly_job_counts(keywords, location, months=6):
+    """
+    Get job counts per month for last N months to show trending demand.
+    """
+    if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
+        return []
+
+    country_code = detect_country(location)
+    base_url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
+    counts = []
+    today = datetime.date.today()
+
+    for i in range(months):
+        # Calculate first and last day of target month
+        first_of_month = (today.replace(day=1) - datetime.timedelta(days=30*i))
+        start = first_of_month.isoformat()
+        next_month = first_of_month + datetime.timedelta(days=32)
+        last_of_month = next_month.replace(day=1) - datetime.timedelta(days=1)
+        end = last_of_month.isoformat()
+
+        params = {
+            "app_id": ADZUNA_APP_ID,
+            "app_key": ADZUNA_APP_KEY,
+            "what": keywords,
+            "where": location,
+            "results_per_page": 1,
+            "content-type": "application/json",
+            "date_posted_min": start,
+            "date_posted_max": end,
+        }
+
+        try:
+            response = requests.get(base_url, params=params)
+            if response.status_code == 200:
+                data = response.json()
+                counts.append({"month": start[:7], "count": data.get("count", 0)})
+            else:
+                counts.append({"month": start[:7], "count": 0})
+        except Exception as e:
+            print(f"🔥 Exception during monthly count request: {e}")
+            counts.append({"month": start[:7], "count": 0})
+
+    counts.reverse()  # Oldest first
+    return counts
