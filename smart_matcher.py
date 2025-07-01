@@ -7,11 +7,9 @@ from openai import OpenAI
 client = OpenAI()
 
 def get_embedding(text, model="text-embedding-3-large"):
-    """
-    Get embedding vector from OpenAI using the new API.
-    """
+    print(f"DEBUG: Getting embedding for text: {repr(text)}")  # Debug print
     response = client.embeddings.create(
-        model=model,    # use the argument passed or default
+        model=model,
         input=text
     )
     return response.data[0].embedding
