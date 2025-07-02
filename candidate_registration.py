@@ -6,6 +6,7 @@ from itsdangerous import URLSafeSerializer
 from datetime import datetime, timedelta
 import requests
 from openai import OpenAI
+from adzuna_helper import detect_country  # Import detect_country here
 
 class CandidateRegistrationSystem:
     def __init__(self):
@@ -37,7 +38,7 @@ class CandidateRegistrationSystem:
             print("⚠️ Missing Adzuna credentials")
             return 0
 
-        country_code = "gb" if "uk" in location.lower() or "london" in location.lower() else "us"
+        country_code = detect_country(location)
         base_url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
         total_count = 0
         today = datetime.utcnow().date()
