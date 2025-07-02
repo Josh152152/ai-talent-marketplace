@@ -6,7 +6,7 @@ from itsdangerous import URLSafeSerializer
 from datetime import datetime, timedelta
 import requests
 from openai import OpenAI
-from adzuna_helper import detect_country  # Import detect_country here
+from adzuna_helper import detect_country  # Make sure this exists and is imported
 
 class CandidateRegistrationSystem:
     def __init__(self):
@@ -67,7 +67,9 @@ class CandidateRegistrationSystem:
                 res = requests.get(base_url, params=params)
                 if res.status_code == 200:
                     data = res.json()
-                    total_count += data.get("count", 0)
+                    count = data.get("count", 0)
+                    total_count += count
+                    print(f"Month {start} to {end}: found {count} jobs")
                 else:
                     print(f"⚠️ Adzuna API error: {res.status_code} - {res.text}")
             except Exception as e:
