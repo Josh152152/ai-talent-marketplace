@@ -3,7 +3,7 @@ import bcrypt
 from flask import jsonify
 from sheets import get_gspread_client
 from itsdangerous import URLSafeSerializer
-from datetime import datetime, timedelta
+from datetime import datetime
 import requests
 from openai import OpenAI
 from adzuna_helper import detect_country  # Make sure this exists and is imported
@@ -29,10 +29,10 @@ class CandidateRegistrationSystem:
         job_title = response.choices[0].message.content.strip()
         return job_title
 
-    def query_adzuna_job_counts(self, job_title, location, months=6, radius_km=50):
+    def query_adzuna_job_counts(self, job_title, location, radius_km=50):
         """
-        Query Adzuna API to get monthly job counts for the job_title around location in last N months.
-        Returns total jobs over the period.
+        Query Adzuna API to get total job counts for the job_title around location.
+        No date filtering to avoid 400 errors.
         """
         if not self.adzuna_app_id or not self.adzuna_app_key:
             print("⚠️ Missing Adzuna credentials")
@@ -40,42 +40,35 @@ class CandidateRegistrationSystem:
 
         country_code = detect_country(location)
         base_url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
-        total_count = 0
-        today = datetime.utcnow().date()
 
-        for i in range(months):
-            first_of_month = (today.replace(day=1) - timedelta(days=30 * i))
-            start = first_of_month.isoformat()
-            next_month = first_of_month + timedelta(days=32)
-            last_of_month = next_month.replace(day=1) - timedelta(days=1)
-            end = last_of_month.isoformat()
+        params = {
+            "app_id": self.adzuna_app_id,
+            "app_key": self.adzuna_app_key,
+            "what": job_title,
+            "where": location,
+            "results_per_page": 1,  # only need count
+            "distance": radius_km,
+            # "date_posted": "last-30-days",  # optional if you want to filter recent jobs
+        }
 
-            params = {
-                "app_id": self.adzuna_app_id,
-                "app_key": self.adzuna_app_key,
-                "what": job_title,
-                "where": location,
-                "results_per_page": 1,
-                "distance": radius_km,
-                "date_posted_min": start,
-                "date_posted_max": end,
-            }
-
-            try:
-                print(f"Querying Adzuna API with URL: {base_url}")
-                print(f"Parameters: {params}")
-                res = requests.get(base_url, params=params)
-                if res.status_code == 200:
-                    data = res.json()
-                    count = data.get("count", 0)
-                    total_count += count
-                    print(f"Month {start} to {end}: found {count} jobs")
-                else:
-                    print(f"⚠️ Adzuna API error: {res.status_code} - {res.text}")
-            except Exception as e:
-                print(f"🔥 Exception querying Adzuna: {e}")
-
-        return total_count
+        try:
+            print(f"Querying Adzuna API with URL: {base_url}")
+            print(f"Parameters: {params}")
+            res = requests.get(base_url, params=params)
+            if res.status_code == 200:
+                data = res.json()
+                count = data.get("count", 0)
+                print(f"Jobs found: {count}")
+                return count
+            elif res.status_code == 429:
+                print("⚠️ Rate limit hit (429). Please slow down requests.")
+                return 0
+            else:
+                print(f"⚠️ Adzuna API error: {res.status_code} - {res.text}")
+                return 0
+        except Exception as e:
+            print(f"🔥 Exception querying Adzuna: {e}")
+            return 0
 
     def generate_interview_questions(self, skills, job_title):
         """
