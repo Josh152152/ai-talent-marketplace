@@ -3,7 +3,7 @@ import bcrypt
 from flask import jsonify
 from sheets import get_gspread_client
 from itsdangerous import URLSafeSerializer
-from datetime import datetime, timedelta
+from datetime import datetime
 import requests
 from openai import OpenAI
 from adzuna_helper import detect_country  # Make sure this exists and is imported
@@ -23,8 +23,7 @@ class CandidateRegistrationSystem:
             max_tokens=10,
             temperature=0.0,
         )
-        job_title = response.choices[0].message.content.strip()
-        return job_title
+        return response.choices[0].message.content.strip()
 
     def query_adzuna_job_counts(self, job_title, location, radius_km=50):
         if not self.adzuna_app_id or not self.adzuna_app_key:
@@ -41,7 +40,6 @@ class CandidateRegistrationSystem:
             "where": location,
             "results_per_page": 1,
             "distance": radius_km,
-            "date_posted": "last-30-days",  # supported param for last 30 days
         }
 
         try:
@@ -59,57 +57,6 @@ class CandidateRegistrationSystem:
         except Exception as e:
             print(f"🔥 Exception querying Adzuna: {e}")
             return 0
-
-    def get_job_counts_over_time(self, job_title, location, radius_km=50, months=6):
-        """
-        Returns a list of dicts with monthly job counts over the past `months` months.
-        Each dict contains: {"month": "YYYY-MM", "count": int}
-
-        NOTE: If Adzuna API rejects date_posted_min/max parameters,
-        this function might need to be adjusted or simplified.
-        """
-        if not self.adzuna_app_id or not self.adzuna_app_key:
-            print("⚠️ Missing Adzuna credentials")
-            return []
-
-        country_code = detect_country(location)
-        base_url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
-        today = datetime.utcnow().date()
-
-        monthly_counts = []
-
-        for i in range(months - 1, -1, -1):
-            first_of_month = (today.replace(day=1) - timedelta(days=30 * i))
-            next_month = (first_of_month + timedelta(days=32)).replace(day=1)
-            month_str = first_of_month.strftime("%Y-%m")
-
-            params = {
-                "app_id": self.adzuna_app_id,
-                "app_key": self.adzuna_app_key,
-                "what": job_title,
-                "where": location,
-                "results_per_page": 1,
-                "distance": radius_km,
-                "date_posted_min": first_of_month.isoformat(),
-                "date_posted_max": next_month.isoformat(),
-            }
-
-            try:
-                print(f"Querying Adzuna for month {month_str} with params: {params}")
-                res = requests.get(base_url, params=params)
-                if res.status_code == 200:
-                    data = res.json()
-                    count = data.get("count", 0)
-                    print(f"Month {month_str}: {count} jobs")
-                    monthly_counts.append({"month": month_str, "count": count})
-                else:
-                    print(f"⚠️ Adzuna API error: {res.status_code} - {res.text}")
-                    monthly_counts.append({"month": month_str, "count": 0})
-            except Exception as e:
-                print(f"🔥 Exception querying Adzuna: {e}")
-                monthly_counts.append({"month": month_str, "count": 0})
-
-        return monthly_counts
 
     def generate_interview_questions(self, skills, job_title):
         prompt = (
@@ -134,9 +81,8 @@ class CandidateRegistrationSystem:
             skills = data.get("skills")
             location = data.get("location")
             summary = data.get("summary")
-            radius_km = data.get("radius_km", 50)  # default radius 50 km if not provided
+            radius_km = data.get("radius_km", 50)  # default radius 50 km
 
-            # Validate required fields
             if not email or not name or not skills or not location or not summary:
                 return jsonify({
                     "success": False,
@@ -145,35 +91,25 @@ class CandidateRegistrationSystem:
 
             client = get_gspread_client()
 
-            # USERS SHEET
             users_sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
             users = users_sheet.get_all_records()
 
-            # Check if email exists
             if any(row["Email"] == email for row in users):
                 return jsonify({"success": False, "error": "Email already registered."}), 400
 
-            # Append new user (password handled elsewhere)
             users_sheet.append_row([email, "", ""])
             print(f"✅ Registered user: {email} in USERS sheet")
 
-            # Extract job title using AI
             combined_text = f"{skills} {summary}"
             job_title = self.extract_job_title(combined_text)
             print(f"🧠 AI-derived job title: {job_title}")
 
-            # Query job counts on Adzuna with radius
             job_count = self.query_adzuna_job_counts(job_title, location, radius_km=radius_km)
             print(f"📊 Jobs found for '{job_title}' near '{location}' within {radius_km} km: {job_count}")
 
-            # Get monthly job counts for the last 6 months
-            job_counts_over_time = self.get_job_counts_over_time(job_title, location, radius_km=radius_km, months=6)
-
-            # Generate interview questions
             interview_questions = self.generate_interview_questions(skills, job_title)
             print(f"❓ Interview questions generated")
 
-            # Append candidate info with new fields
             candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
             timestamp = datetime.now().isoformat()
             candidates_sheet.append_row([
@@ -182,13 +118,12 @@ class CandidateRegistrationSystem:
             ])
             print(f"✅ Created profile for: {email} with job title and interview questions")
 
-            dashboard_link = f"https://ai-talent-marketplace.onrender.com/dashboard"
+            dashboard_link = "https://ai-talent-marketplace.onrender.com/dashboard"
             return jsonify({
                 "success": True,
                 "message": "Registration successful.",
                 "job_title": job_title,
                 "job_count": job_count,
-                "job_counts_over_time": job_counts_over_time,
                 "interview_questions": interview_questions,
                 "dashboard_link": dashboard_link
             })
