@@ -28,7 +28,7 @@ class CandidateRegistrationSystem:
         job_title = response.choices[0].message.content.strip()
         return job_title
 
-    def query_adzuna_job_counts(self, job_title, location, months=6, radius_km=50):
+    def query_adzuna_job_counts(self, job_title, location, months=6, radius_km=5000):
         """
         Query Adzuna API to get monthly job counts for the job_title around location in last N months.
         Returns total jobs over the period.
