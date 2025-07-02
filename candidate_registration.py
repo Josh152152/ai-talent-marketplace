@@ -41,7 +41,7 @@ class CandidateRegistrationSystem:
             "where": location,
             "results_per_page": 1,
             "distance": radius_km,
-            "date_posted": "last-30-days",
+            "date_posted": "last-30-days",  # supported param for last 30 days
         }
 
         try:
@@ -64,6 +64,9 @@ class CandidateRegistrationSystem:
         """
         Returns a list of dicts with monthly job counts over the past `months` months.
         Each dict contains: {"month": "YYYY-MM", "count": int}
+
+        NOTE: If Adzuna API rejects date_posted_min/max parameters,
+        this function might need to be adjusted or simplified.
         """
         if not self.adzuna_app_id or not self.adzuna_app_key:
             print("⚠️ Missing Adzuna credentials")
@@ -77,6 +80,7 @@ class CandidateRegistrationSystem:
 
         for i in range(months - 1, -1, -1):
             first_of_month = (today.replace(day=1) - timedelta(days=30 * i))
+            next_month = (first_of_month + timedelta(days=32)).replace(day=1)
             month_str = first_of_month.strftime("%Y-%m")
 
             params = {
@@ -86,9 +90,8 @@ class CandidateRegistrationSystem:
                 "where": location,
                 "results_per_page": 1,
                 "distance": radius_km,
-                # Use date_posted_min and date_posted_max to cover the full month
                 "date_posted_min": first_of_month.isoformat(),
-                "date_posted_max": (first_of_month + timedelta(days=32)).replace(day=1).isoformat(),
+                "date_posted_max": next_month.isoformat(),
             }
 
             try:
@@ -185,7 +188,7 @@ class CandidateRegistrationSystem:
                 "message": "Registration successful.",
                 "job_title": job_title,
                 "job_count": job_count,
-                "job_counts_over_time": job_counts_over_time,  # added this new field
+                "job_counts_over_time": job_counts_over_time,
                 "interview_questions": interview_questions,
                 "dashboard_link": dashboard_link
             })
