@@ -62,6 +62,8 @@ class CandidateRegistrationSystem:
             }
 
             try:
+                print(f"Querying Adzuna API with URL: {base_url}")
+                print(f"Parameters: {params}")
                 res = requests.get(base_url, params=params)
                 if res.status_code == 200:
                     data = res.json()
