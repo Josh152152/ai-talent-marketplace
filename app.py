@@ -1,9 +1,160 @@
-# (All your previous imports here)
-from adzuna_helper import query_jobs, detect_country  # Make sure detect_country is included
+from flask import Flask, request, jsonify, session, redirect, render_template
+from flask_cors import CORS
+from functools import wraps
+import os
+import sys
+import bcrypt
+from dotenv import load_dotenv
+from itsdangerous import URLSafeSerializer
+from sheets import get_gspread_client
+from candidate_registration import CandidateRegistrationSystem
+from matching_system import MatchingSystem
+from adzuna_helper import query_jobs, detect_country
+from smart_matcher import match_jobs, suggest_missing_skills
 
-# ... rest of your existing code above remains unchanged ...
+# Ensure print() flushes immediately to logs
+sys.stdout.reconfigure(line_buffering=True)
 
-# ------------------- 🔍 AI SKILL EXPANSION -------------------
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app)
+app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
+
+registration = CandidateRegistrationSystem()
+matcher = MatchingSystem()
+
+# ------------------- AUTH -------------------
+
+AUTHORIZED_USERS = {"admin@example.com": "securepassword"}
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        if AUTHORIZED_USERS.get(email) == password:
+            session["user"] = email
+            return redirect("/admin")
+        return "Unauthorized", 401
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    return redirect("/login")
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user" not in session:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/admin")
+@login_required
+def admin_dashboard():
+    return "Welcome to the Admin Dashboard"
+
+# ------------------- CANDIDATE LOGIN -------------------
+
+@app.route("/login_user", methods=["POST"])
+def login_user():
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        password = data.get("password")
+
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required."}), 400
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
+        users = sheet.get_all_records()
+
+        for user in users:
+            if user["Email"] == email:
+                stored_hash = user["Password_Hash"]
+                if bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+                    session["user"] = email
+                    print(f"🔓 Login successful: {email}")
+                    return jsonify({"success": True, "message": "Login successful."})
+                else:
+                    return jsonify({"success": False, "error": "Incorrect password."}), 401
+        return jsonify({"success": False, "error": "User not found."}), 404
+
+    except Exception as e:
+        print(f"🔥 Error in /login_user: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/candidate_login", methods=["GET", "POST"])
+def candidate_login_form():
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("USERS_SHEET_ID")).sheet1
+        users = sheet.get_all_records()
+
+        for user in users:
+            if user["Email"] == email:
+                stored_hash = user["Password_Hash"]
+                if bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+                    session["user"] = email
+                    return redirect("/dashboard")
+                else:
+                    return "Incorrect password", 401
+
+        return "User not found", 404
+
+    return render_template("candidate_login.html")
+
+# ------------------- CANDIDATE DASHBOARD -------------------
+
+@app.route("/dashboard")
+@login_required
+def candidate_dashboard():
+    try:
+        email = session["user"]
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        for row in records:
+            if row.get("Email") == email:
+                return render_template("candidate_dashboard.html", data=row)
+
+        return render_template("candidate_dashboard.html", data={"Email": email, "Skills": "Not set yet"})
+
+    except Exception as e:
+        print(f"🔥 Error in /dashboard: {e}")
+        return "Dashboard error", 500
+
+@app.route("/update_skills", methods=["POST"])
+@login_required
+def update_skills():
+    try:
+        email = session["user"]
+        new_skills = request.form.get("skills", "")
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        for i, row in enumerate(records):
+            if row.get("Email") == email:
+                sheet.update_cell(i + 2, 3, new_skills)  # Column 3 = Skills
+                return redirect("/dashboard")
+
+        return "Candidate not found.", 404
+
+    except Exception as e:
+        print(f"🔥 Error in /update_skills: {e}")
+        return "Internal server error", 500
+
+# ------------------- AI SKILL EXPANSION -------------------
 
 @app.route("/suggest_skills", methods=["POST"])
 def suggest_skills():
@@ -37,7 +188,7 @@ def suggest_skills():
         print(f"🔥 Error in /suggest_skills: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ------------------- 🛠 DEBUG: TEST ADZUNA RAW JOBS -------------------
+# ------------------- DEBUG JOB SEARCH -------------------
 
 @app.route("/debug_jobs", methods=["POST"])
 def debug_jobs():
