@@ -66,7 +66,11 @@ def query_jobs(keywords, location="London", max_results=10):
             return {
                 "count": data.get("count", 0),
                 "examples": [
-                    {"title": job["title"], "url": job.get("redirect_url", "")}
+                    {
+                        "title": job["title"],
+                        "description": job.get("description", ""),
+                        "url": job.get("redirect_url", "")
+                    }
                     for job in data.get("results", [])
                 ]
             }
@@ -78,3 +82,40 @@ def query_jobs(keywords, location="London", max_results=10):
             }
     except Exception as e:
         return {"error": str(e)}
+
+def suggest_skill_expansion(current_skills, location, max_skills=3):
+    base_result = query_jobs(keywords=" ".join(current_skills), location=location, max_results=50)
+    if "examples" not in base_result or not base_result["examples"]:
+        return [{"error": "No base jobs found for current skills."}]
+
+    # Extract words from job descriptions
+    all_descriptions = []
+    for job in base_result["examples"]:
+        text = f"{job.get('title', '')} {job.get('description', '')}"
+        all_descriptions.append(text.lower())
+
+    combined_text = " ".join(all_descriptions)
+    all_words = clean_keywords(combined_text)
+
+    # Exclude existing skills
+    skill_candidates = [word for word in all_words if word not in current_skills]
+
+    # Frequency count
+    freq = {}
+    for word in skill_candidates:
+        freq[word] = freq.get(word, 0) + 1
+
+    sorted_skills = sorted(freq.items(), key=lambda x: x[1], reverse=True)
+
+    # Simulate each new skill
+    suggestions = []
+    for skill, _ in sorted_skills[:10]:  # Top 10 candidates to test
+        simulated = query_jobs(keywords=" ".join(current_skills + [skill]), location=location, max_results=50)
+        extra_jobs = max(0, simulated.get("count", 0) - base_result.get("count", 0))
+        if extra_jobs > 0:
+            suggestions.append({
+                "skill": skill,
+                "extra_jobs_unlocked": extra_jobs
+            })
+
+    return sorted(suggestions, key=lambda x: x["extra_jobs_unlocked"], reverse=True)[:max_skills]
