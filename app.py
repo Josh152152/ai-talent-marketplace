@@ -10,7 +10,7 @@ from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
 from adzuna_helper import query_jobs
-from smart_matcher import match_jobs, suggest_missing_skills  # ✅ NEW
+from smart_matcher import match_jobs, suggest_missing_skills
 
 # Ensure print() flushes immediately to logs
 sys.stdout.reconfigure(line_buffering=True)
@@ -232,6 +232,36 @@ def adzuna_match():
 
     except Exception as e:
         print(f"🔥 Error in /adzuna_match (AI): {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ------------------- 🔍 AI SKILL EXPANSION -------------------
+
+@app.route("/suggest_skills", methods=["POST"])
+@login_required
+def suggest_skills():
+    try:
+        email = session["user"]
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+
+        candidate = next((r for r in records if r["Email"] == email), None)
+        if not candidate:
+            return jsonify({"error": "Candidate not found"}), 404
+
+        skills = [s.strip().lower() for s in candidate.get("Skills", "").split(",") if s.strip()]
+        location = candidate.get("Location", "")
+
+        from adzuna_helper import suggest_skill_expansion
+        suggestions = suggest_skill_expansion(skills, location)
+
+        return jsonify({
+            "email": email,
+            "suggested_skills": suggestions
+        })
+
+    except Exception as e:
+        print(f"🔥 Error in /suggest_skills: {e}")
         return jsonify({"error": str(e)}), 500
 
 # ------------------- SYSTEM ROUTES -------------------
