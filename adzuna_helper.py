@@ -2,9 +2,11 @@ import os
 import requests
 import re
 
+# Load Adzuna credentials from environment variables
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
 
+# Map keywords to standardized job roles (used for query optimization)
 KEYWORD_TO_ROLE = {
     "html": "frontend developer",
     "css": "frontend developer",
@@ -25,8 +27,8 @@ def clean_keywords(text):
     if not text:
         return []
     text = text.lower()
-    text = re.sub(r"[^\w\s]", "", text)
-    return list(set(re.findall(r"\b\w{3,}\b", text)))
+    text = re.sub(r"[^\w\s]", "", text)  # Remove punctuation
+    return list(set(re.findall(r"\b\w{3,}\b", text)))  # Keep words >= 3 letters
 
 def map_keywords_to_roles(keywords):
     return list(set(KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE))
@@ -87,6 +89,7 @@ def suggest_skill_expansion(current_skills, location, max_skills=3):
     if "examples" not in base_result or not base_result["examples"]:
         return []
 
+    # Gather job descriptions
     all_descriptions = []
     for job in base_result["examples"]:
         text = f"{job.get('title', '')} {job.get('description', '')}"
@@ -94,19 +97,24 @@ def suggest_skill_expansion(current_skills, location, max_skills=3):
 
     combined_text = " ".join(all_descriptions)
     all_words = clean_keywords(combined_text)
+
+    # Filter out existing skills
     skill_candidates = [word for word in all_words if word not in current_skills]
 
+    # Frequency count
     freq = {}
     for word in skill_candidates:
         freq[word] = freq.get(word, 0) + 1
 
     sorted_skills = sorted(freq.items(), key=lambda x: x[1], reverse=True)
 
+    # Evaluate impact of each new skill
     suggestions = []
-    for skill, _ in sorted_skills[:10]:
+    for skill, _ in sorted_skills[:20]:  # Top 20 candidate words
         simulated = query_jobs(keywords=" ".join(current_skills + [skill]), location=location, max_results=50)
         extra_jobs = max(0, simulated.get("count", 0) - base_result.get("count", 0))
-        if extra_jobs > 0:
+        print(f"🧪 Testing skill '{skill}': unlocked {extra_jobs} new jobs")
+        if extra_jobs >= 0:  # include zero for visibility
             suggestions.append({
                 "skill": skill,
                 "extra_jobs_unlocked": extra_jobs
