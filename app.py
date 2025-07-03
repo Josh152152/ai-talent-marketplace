@@ -237,7 +237,6 @@ def adzuna_match():
 # ------------------- 🔍 AI SKILL EXPANSION -------------------
 
 @app.route("/suggest_skills", methods=["POST"])
-@login_required
 def suggest_skills():
     try:
         email = session["user"]
