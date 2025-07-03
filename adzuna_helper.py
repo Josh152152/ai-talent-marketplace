@@ -14,6 +14,7 @@ KEYWORD_TO_ROLE = {
     "django": "python developer",
     "flask": "python developer",
     "sql": "data analyst",
+    "excel": "data analyst",
     "aws": "cloud engineer",
     "node": "backend developer",
     "java": "backend developer",
@@ -32,20 +33,18 @@ def map_keywords_to_roles(keywords):
 
 def detect_country(location):
     if not location:
-        return "gb"  # default fallback
+        return "gb"
     loc = location.lower()
     us_cities = ["new york", "san francisco", "los angeles", "chicago", "seattle", "boston", "austin", "washington"]
     if any(city in loc for city in us_cities) or "united states" in loc or "usa" in loc:
         return "us"
-    else:
-        return "gb"
+    return "gb"
 
 def query_jobs(keywords, location="London", max_results=10):
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
 
     country_code = detect_country(location)
-
     keyword_list = clean_keywords(keywords)
     role_terms = map_keywords_to_roles(keyword_list)
     search_terms = " ".join(role_terms[:3]) if role_terms else " ".join(keyword_list[:3])
@@ -67,7 +66,7 @@ def query_jobs(keywords, location="London", max_results=10):
                 "count": data.get("count", 0),
                 "examples": [
                     {
-                        "title": job["title"],
+                        "title": job.get("title"),
                         "description": job.get("description", ""),
                         "url": job.get("redirect_url", "")
                     }
@@ -86,9 +85,8 @@ def query_jobs(keywords, location="London", max_results=10):
 def suggest_skill_expansion(current_skills, location, max_skills=3):
     base_result = query_jobs(keywords=" ".join(current_skills), location=location, max_results=50)
     if "examples" not in base_result or not base_result["examples"]:
-        return [{"error": "No base jobs found for current skills."}]
+        return []
 
-    # Extract words from job descriptions
     all_descriptions = []
     for job in base_result["examples"]:
         text = f"{job.get('title', '')} {job.get('description', '')}"
@@ -96,20 +94,16 @@ def suggest_skill_expansion(current_skills, location, max_skills=3):
 
     combined_text = " ".join(all_descriptions)
     all_words = clean_keywords(combined_text)
-
-    # Exclude existing skills
     skill_candidates = [word for word in all_words if word not in current_skills]
 
-    # Frequency count
     freq = {}
     for word in skill_candidates:
         freq[word] = freq.get(word, 0) + 1
 
     sorted_skills = sorted(freq.items(), key=lambda x: x[1], reverse=True)
 
-    # Simulate each new skill
     suggestions = []
-    for skill, _ in sorted_skills[:10]:  # Top 10 candidates to test
+    for skill, _ in sorted_skills[:10]:
         simulated = query_jobs(keywords=" ".join(current_skills + [skill]), location=location, max_results=50)
         extra_jobs = max(0, simulated.get("count", 0) - base_result.get("count", 0))
         if extra_jobs > 0:
