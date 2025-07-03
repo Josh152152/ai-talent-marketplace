@@ -2,9 +2,11 @@ import os
 import requests
 import re
 
+# Load Adzuna credentials from environment
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
 
+# Manual mapping of known keywords to job roles
 KEYWORD_TO_ROLE = {
     "html": "frontend developer",
     "css": "frontend developer",
@@ -18,9 +20,16 @@ KEYWORD_TO_ROLE = {
     "aws": "cloud engineer",
     "node": "backend developer",
     "java": "backend developer",
-    "api": "backend developer"
+    "api": "backend developer",
+    "dcs": "control systems engineer",
+    "plc": "automation engineer",
+    "scada": "automation engineer",
+    "refinery": "chemical engineer",
+    "automation": "automation engineer",
+    "process": "process engineer"
 }
 
+# Extract clean keywords from text
 def clean_keywords(text):
     if not text:
         return []
@@ -28,9 +37,11 @@ def clean_keywords(text):
     text = re.sub(r"[^\w\s]", "", text)
     return list(set(re.findall(r"\b\w{3,}\b", text)))
 
+# Map cleaned keywords to known job roles
 def map_keywords_to_roles(keywords):
     return list(set(KEYWORD_TO_ROLE[k] for k in keywords if k in KEYWORD_TO_ROLE))
 
+# Infer country from location
 def detect_country(location):
     if not location:
         return "gb"
@@ -40,6 +51,7 @@ def detect_country(location):
         return "us"
     return "gb"
 
+# Query Adzuna API for job listings
 def query_jobs(keywords, location="London", max_results=10):
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         return {"error": "Missing Adzuna credentials"}
@@ -47,7 +59,7 @@ def query_jobs(keywords, location="London", max_results=10):
     country_code = detect_country(location)
     keyword_list = clean_keywords(keywords)
     role_terms = map_keywords_to_roles(keyword_list)
-    search_terms = " ".join(role_terms[:3]) if role_terms else " ".join(keyword_list[:3])
+    search_terms = " ".join(role_terms[:3]) if role_terms else " ".join(keyword_list[:5])
 
     url = f"https://api.adzuna.com/v1/api/jobs/{country_code}/search/1"
     params = {
@@ -82,6 +94,7 @@ def query_jobs(keywords, location="London", max_results=10):
     except Exception as e:
         return {"error": str(e)}
 
+# Suggest additional skills to unlock more jobs
 def suggest_skill_expansion(current_skills, location, max_skills=3):
     base_result = query_jobs(keywords=" ".join(current_skills), location=location, max_results=50)
     if "examples" not in base_result or not base_result["examples"]:
