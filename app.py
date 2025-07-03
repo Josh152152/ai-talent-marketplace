@@ -118,7 +118,7 @@ def candidate_login_form():
 def candidate_dashboard():
     try:
         data = request.get_json()
-        email = data.get("email"
+        email = data.get("email")
         client = get_gspread_client()
         sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         records = sheet.get_all_records()
