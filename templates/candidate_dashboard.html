@@ -2,6 +2,18 @@
 <html>
 <head>
   <title>Candidate Dashboard</title>
+  <style>
+    .suggestion-box {
+      border: 1px solid #ccc;
+      padding: 16px;
+      border-radius: 12px;
+      margin-top: 24px;
+      background: #f9f9f9;
+    }
+    #suggested-skills-list li {
+      margin-bottom: 8px;
+    }
+  </style>
 </head>
 <body>
   <h2>Welcome, {{ data.Email }}</h2>
@@ -14,7 +26,41 @@
     <button type="submit">Update</button>
   </form>
 
+  <!-- 🔍 AI Skill Suggestions Section -->
+  <div id="skill-suggestions" class="suggestion-box">
+    <h3>🚀 AI Skill Suggestions to Boost Your Job Matches</h3>
+    <button onclick="fetchSuggestedSkills()">Get Skill Suggestions</button>
+    <ul id="suggested-skills-list"></ul>
+  </div>
+
   <br>
   <a href="/logout">Log out</a>
+
+  <script>
+    async function fetchSuggestedSkills() {
+      const response = await fetch("/suggest_skills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      const result = await response.json();
+      const skillList = document.getElementById("suggested-skills-list");
+      skillList.innerHTML = "";
+
+      if (result.suggested_skills && result.suggested_skills.length > 0) {
+        result.suggested_skills.forEach(skill => {
+          const li = document.createElement("li");
+          li.textContent = `🧠 Learn "${skill.skill}" to unlock +${skill.extra_jobs_unlocked} more job postings`;
+          skillList.appendChild(li);
+        });
+      } else {
+        const li = document.createElement("li");
+        li.textContent = "No suggestions available yet. Try updating your skills or location.";
+        skillList.appendChild(li);
+      }
+    }
+  </script>
 </body>
 </html>
