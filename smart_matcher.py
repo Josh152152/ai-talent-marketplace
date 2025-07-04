@@ -15,21 +15,16 @@ def get_embedding(text, model="text-embedding-3-large"):
         print(f"🔥 Embedding error for input: {text[:100]}... → {e}")
         return None
 
-def match_jobs(candidate_text, job_rows):
+def match_jobs(candidate_record, job_rows):
     """
-    Compare candidate text (summary + location) to jobs (summary + location).
-    Each job should contain 'Job Summary' and 'Job Location' fields.
-    Returns top 5 matches with cosine similarity scores.
+    Compare candidate (summary + location) to each job (summary + location).
+    Returns top 5 job matches by cosine similarity.
     """
-    # Include location in candidate input
-    candidate_input = candidate_text.strip()
-    candidate_location = ""
-    if isinstance(candidate_text, dict):
-        candidate_input = candidate_text.get("Summary", "").strip()
-        candidate_location = candidate_text.get("Location", "").strip()
-    full_candidate_input = f"{candidate_input} {candidate_location}".strip()
+    candidate_summary = candidate_record.get("Summary", "").strip()
+    candidate_location = candidate_record.get("Location", "").strip()
+    full_candidate_text = f"{candidate_summary}. Location: {candidate_location}"
 
-    cand_emb = get_embedding(full_candidate_input)
+    cand_emb = get_embedding(full_candidate_text)
     if cand_emb is None:
         return []
 
@@ -39,11 +34,16 @@ def match_jobs(candidate_text, job_rows):
     for job in job_rows:
         job_summary = job.get("Job Summary", "").strip()
         job_location = job.get("Job Location", "").strip()
-        combined = f"{job_summary} {job_location}".strip()
-        emb = get_embedding(combined)
+        full_job_text = f"{job_summary}. Location: {job_location}"
+
+        emb = get_embedding(full_job_text)
         if emb:
             embeddings.append(emb)
-            valid_jobs.append(job)
+            valid_jobs.append({
+                **job,
+                "embedding_input": full_job_text,
+                "location": job_location
+            })
 
     if not embeddings:
         return []
@@ -56,8 +56,7 @@ def match_jobs(candidate_text, job_rows):
 
 def suggest_missing_skills(candidate_skills, job_text):
     """
-    Suggests skills that appear in the job text but are missing from candidate_skills.
-    Returns a list of up to 5 missing keywords.
+    Identify missing keywords in job description not present in candidate's skills.
     """
     job_keywords = set(word.lower().strip(".,()") for word in job_text.split())
     cand_keywords = set(word.lower().strip() for word in candidate_skills.split(","))
