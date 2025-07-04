@@ -24,6 +24,12 @@ app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
+# ------------------- HEALTH CHECK -------------------
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "healthy"}), 200
+
 # ------------------- AUTH -------------------
 
 AUTHORIZED_USERS = {"admin@example.com": "securepassword"}
@@ -227,7 +233,7 @@ def debug_jobs():
         print(f"🔥 Error in /debug_jobs: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ------------------- EMPLOYER DASHBOARD (NEW) -------------------
+# ------------------- EMPLOYER DASHBOARD -------------------
 
 @app.route("/employer_dashboard", methods=["GET"])
 def employer_dashboard():
@@ -251,7 +257,7 @@ def employer_dashboard():
         print(f"🔥 Error in /employer_dashboard: {e}")
         return "Employer dashboard failed", 500
 
-# ------------------- UNLOCK CANDIDATE PROFILE (NEW) -------------------
+# ------------------- UNLOCK CANDIDATE PROFILE -------------------
 
 @app.route("/unlock/<int:candidate_id>", methods=["GET"])
 def unlock_candidate(candidate_id):
@@ -273,5 +279,5 @@ def unlock_candidate(candidate_id):
 # ------------------- MAIN -------------------
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    # Only used when running locally
+    app.run(host="0.0.0.0", port=5000, debug=True)
