@@ -17,11 +17,19 @@ def get_embedding(text, model="text-embedding-3-large"):
 
 def match_jobs(candidate_text, job_rows):
     """
-    Compare candidate text to job descriptions with location context.
-    Expects each job dict to include 'embedding_input' key.
+    Compare candidate text (summary + location) to jobs (summary + location).
+    Each job should contain 'Job Summary' and 'Job Location' fields.
     Returns top 5 matches with cosine similarity scores.
     """
-    cand_emb = get_embedding(candidate_text)
+    # Include location in candidate input
+    candidate_input = candidate_text.strip()
+    candidate_location = ""
+    if isinstance(candidate_text, dict):
+        candidate_input = candidate_text.get("Summary", "").strip()
+        candidate_location = candidate_text.get("Location", "").strip()
+    full_candidate_input = f"{candidate_input} {candidate_location}".strip()
+
+    cand_emb = get_embedding(full_candidate_input)
     if cand_emb is None:
         return []
 
@@ -29,8 +37,10 @@ def match_jobs(candidate_text, job_rows):
     valid_jobs = []
 
     for job in job_rows:
-        job_text = job.get("embedding_input") or job.get("Job Summary")
-        emb = get_embedding(job_text)
+        job_summary = job.get("Job Summary", "").strip()
+        job_location = job.get("Job Location", "").strip()
+        combined = f"{job_summary} {job_location}".strip()
+        emb = get_embedding(combined)
         if emb:
             embeddings.append(emb)
             valid_jobs.append(job)
@@ -46,8 +56,8 @@ def match_jobs(candidate_text, job_rows):
 
 def suggest_missing_skills(candidate_skills, job_text):
     """
-    Extract words from job text not already in candidate_skills.
-    Returns up to 5 missing keywords (case-insensitive).
+    Suggests skills that appear in the job text but are missing from candidate_skills.
+    Returns a list of up to 5 missing keywords.
     """
     job_keywords = set(word.lower().strip(".,()") for word in job_text.split())
     cand_keywords = set(word.lower().strip() for word in candidate_skills.split(","))
