@@ -15,10 +15,11 @@ def get_embedding(text, model="text-embedding-3-large"):
         print(f"🔥 Embedding error for input: {text[:100]}... → {e}")
         return None
 
-def match_jobs(candidate_record, job_rows):
+def match_jobs(candidate_record, job_rows, location_bonus=0.15):
     """
     Compare candidate (summary + location) to each job (summary + location).
-    Returns top 5 job matches by cosine similarity.
+    Boost match score if job and candidate locations are similar.
+    Returns top 5 job matches by adjusted similarity.
     """
     candidate_summary = candidate_record.get("Summary", "").strip()
     candidate_location = candidate_record.get("Location", "").strip()
@@ -49,10 +50,17 @@ def match_jobs(candidate_record, job_rows):
         return []
 
     sim_scores = cosine_similarity([cand_emb], embeddings)[0]
-    matches = list(zip(valid_jobs, sim_scores))
-    matches.sort(key=lambda x: x[1], reverse=True)
+    weighted_matches = []
 
-    return matches[:5]
+    for i, job in enumerate(valid_jobs):
+        job_loc = job.get("location", "").lower()
+        cand_loc = candidate_location.lower()
+        loc_bonus = location_bonus if job_loc and cand_loc and job_loc in cand_loc else 0
+        final_score = sim_scores[i] + loc_bonus
+        weighted_matches.append((job, final_score))
+
+    weighted_matches.sort(key=lambda x: x[1], reverse=True)
+    return weighted_matches[:5]
 
 def suggest_missing_skills(candidate_skills, job_text):
     """
