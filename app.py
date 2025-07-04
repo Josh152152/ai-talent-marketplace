@@ -9,9 +9,7 @@ from matching_system import MatchingSystem
 from adzuna_helper import query_jobs, detect_country
 from smart_matcher import suggest_missing_skills, match_jobs
 
-# Ensure print() flushes immediately
 sys.stdout.reconfigure(line_buffering=True)
-
 load_dotenv()
 
 app = Flask(__name__)
@@ -21,13 +19,13 @@ app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
-# ------------------- HEALTH CHECK -------------------
+# ------------------- HEALTH -------------------
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "healthy"}), 200
 
-# ------------------- CANDIDATE DASHBOARD -------------------
+# ------------------- DASHBOARD -------------------
 
 @app.route("/dashboard", methods=["GET"])
 def candidate_dashboard():
@@ -45,7 +43,6 @@ def candidate_dashboard():
                 return render_template("candidate_dashboard.html", data=row)
 
         return render_template("candidate_dashboard.html", data={"Email": email, "Skills": "Not set yet"})
-
     except Exception as e:
         print(f"🔥 Error in /dashboard: {e}")
         return "Dashboard error", 500
@@ -64,16 +61,15 @@ def update_skills():
 
         for i, row in enumerate(records):
             if row.get("Email") == email:
-                sheet.update_cell(i + 2, 3, new_skills)  # Column 3 = Skills
+                sheet.update_cell(i + 2, 3, new_skills)
                 return redirect(f"/dashboard?email={email}")
 
         return "Candidate not found.", 404
-
     except Exception as e:
         print(f"🔥 Error in /update_skills: {e}")
         return "Internal server error", 500
 
-# ------------------- AI SKILL EXPANSION -------------------
+# ------------------- SUGGEST SKILLS -------------------
 
 @app.route("/suggest_skills", methods=["POST"])
 def suggest_skills():
@@ -97,16 +93,12 @@ def suggest_skills():
         from adzuna_helper import suggest_skill_expansion
         suggestions = suggest_skill_expansion(skills, location)
 
-        return jsonify({
-            "email": email,
-            "suggested_skills": suggestions
-        })
-
+        return jsonify({"email": email, "suggested_skills": suggestions})
     except Exception as e:
         print(f"🔥 Error in /suggest_skills: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ------------------- DEBUG JOB SEARCH -------------------
+# ------------------- JOB SEARCH -------------------
 
 @app.route("/debug_jobs", methods=["POST"])
 def debug_jobs():
@@ -139,12 +131,11 @@ def debug_jobs():
             "job_count": result.get("count", 0),
             "examples": result.get("examples", [])
         })
-
     except Exception as e:
         print(f"🔥 Error in /debug_jobs: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ------------------- MATCHING VIA EMBEDDINGS -------------------
+# ------------------- MATCH JOBS -------------------
 
 @app.route("/match_jobs", methods=["POST"])
 def match_jobs_route():
@@ -179,7 +170,6 @@ def match_jobs_route():
                 } for match in top_matches
             ]
         })
-
     except Exception as e:
         print(f"🔥 Error in /match_jobs: {e}")
         return jsonify({"error": str(e)}), 500
@@ -203,12 +193,11 @@ def employer_dashboard():
             })
 
         return render_template("employer_dashboard.html", candidates=anonymized)
-
     except Exception as e:
         print(f"🔥 Error in /employer_dashboard: {e}")
         return "Employer dashboard failed", 500
 
-# ------------------- UNLOCK CANDIDATE PROFILE -------------------
+# ------------------- UNLOCK PROFILE -------------------
 
 @app.route("/unlock/<int:candidate_id>", methods=["GET"])
 def unlock_candidate(candidate_id):
@@ -222,12 +211,11 @@ def unlock_candidate(candidate_id):
 
         candidate = candidates[candidate_id]
         return render_template("unlocked_candidate.html", candidate=candidate)
-
     except Exception as e:
         print(f"🔥 Error in /unlock/{candidate_id}: {e}")
         return "Unlock failed", 500
 
-# ------------------- MAIN -------------------
+# ------------------- HOME -------------------
 
 @app.route("/", methods=["GET"])
 def home():
