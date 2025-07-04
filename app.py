@@ -147,7 +147,7 @@ def match_jobs_route():
 
         client = get_gspread_client()
 
-        # 🔍 Candidate summary
+        # Load candidate info
         cand_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         candidates = cand_sheet.get_all_records()
         candidate = next((r for r in candidates if r["Email"] == email), None)
@@ -158,7 +158,7 @@ def match_jobs_route():
         if not candidate_summary.strip():
             return jsonify({"error": "Candidate summary is empty"}), 400
 
-        # 📄 Job summaries from separate job sheet
+        # Load job listings
         job_sheet = client.open_by_key(os.getenv("JOBS_SHEET_ID")).sheet1
         job_rows = [r for r in job_sheet.get_all_records() if r.get("Job Summary")]
 
@@ -167,16 +167,23 @@ def match_jobs_route():
 
         top_matches = match_jobs(candidate_summary, job_rows)
 
+        # Keyword overlap reasoning
+        def extract_keywords(text):
+            words = text.lower().split()
+            return set(w.strip(".,()") for w in words if len(w) > 3)
+
+        candidate_keywords = extract_keywords(candidate_summary)
+
         return jsonify({
             "email": email,
             "top_matches": [
                 {
                     "summary": match[0].get("Job Summary", ""),
-                    "score": round(float(match[1]), 4)
+                    "score": round(float(match[1]), 4),
+                    "reason": ", ".join(candidate_keywords & extract_keywords(match[0].get("Job Summary", ""))) or "Similar context and terminology"
                 } for match in top_matches
             ]
         })
-
     except Exception as e:
         print(f"🔥 Error in /match_jobs: {e}")
         return jsonify({"error": str(e)}), 500
