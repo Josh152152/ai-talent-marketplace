@@ -37,15 +37,15 @@
   <a href="/logout">Log out</a>
 
   <script>
-    async function fetchSuggestedSkills() {
-      const email = "{{ data.Email }}"; // ✅ email injected into JavaScript
+    const userEmail = "{{ data.Email }}";  // 🟢 Capture email from server
 
+    async function fetchSuggestedSkills() {
       const response = await fetch("/suggest_skills", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email: userEmail }) // 🟢 Pass email here
       });
 
       const result = await response.json();
