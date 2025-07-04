@@ -6,7 +6,7 @@ from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 
 client = OpenAI()
-geolocator = Nominatim(user_agent="geo-matcher")
+geolocator = Nominatim(user_agent="ai-talent-matching")
 
 def get_embedding(text, model="text-embedding-3-large"):
     if not text or not text.strip():
@@ -15,73 +15,74 @@ def get_embedding(text, model="text-embedding-3-large"):
         response = client.embeddings.create(model=model, input=text.strip())
         return response.data[0].embedding
     except Exception as e:
-        print(f"\U0001F525 Embedding error for input: {text[:100]}... → {e}")
+        print(f"🔥 Embedding error: {text[:80]}... → {e}")
         return None
 
-def get_coordinates(location):
-    if not location.strip():
+def get_coordinates(location_name):
+    if not location_name:
         return None
     try:
-        loc = geolocator.geocode(location)
-        return (loc.latitude, loc.longitude) if loc else None
+        location = geolocator.geocode(location_name)
+        if location:
+            return (location.latitude, location.longitude)
     except Exception as e:
-        print(f"\U0001F525 Geolocation error for: {location} → {e}")
-        return None
+        print(f"🌍 Geocoding error for {location_name}: {e}")
+    return None
 
-def compute_distance_km(loc1, loc2):
-    try:
-        return geodesic(loc1, loc2).km
-    except:
-        return None
+def compute_geo_penalty(loc1, loc2):
+    """
+    Returns a penalty factor (0–1). 
+    The farther the distance, the lower the factor.
+    Max penalty at ~10,000 km → 50% similarity reduction.
+    """
+    coords1 = get_coordinates(loc1)
+    coords2 = get_coordinates(loc2)
+
+    if not coords1 or not coords2:
+        return 1.0  # no penalty if location unknown
+
+    distance_km = geodesic(coords1, coords2).km
+    penalty_factor = max(0.5, 1 - (distance_km / 20000))  # max 50% penalty
+    return penalty_factor
 
 def match_jobs(candidate_record, job_rows):
     """
-    Compare candidate (summary + location) to each job (summary + location).
-    Adjust score based on geographic distance.
-    Returns top 5 job matches.
+    Returns top 5 jobs matched to the candidate using semantic similarity and location penalty.
     """
-    candidate_summary = candidate_record.get("Summary", "").strip()
-    candidate_location = candidate_record.get("Location", "").strip()
-    full_candidate_text = f"{candidate_summary}. Location: {candidate_location}"
-    
-    cand_coords = get_coordinates(candidate_location)
-    cand_emb = get_embedding(full_candidate_text)
+    summary = candidate_record.get("Summary", "").strip()
+    location = candidate_record.get("Location", "").strip()
+    full_text = f"{summary}. Location: {location}"
+    cand_emb = get_embedding(full_text)
+
     if cand_emb is None:
         return []
 
-    matches = []
+    embeddings = []
+    valid_jobs = []
+    geo_factors = []
+
     for job in job_rows:
         job_summary = job.get("Job Summary", "").strip()
         job_location = job.get("Job Location", "").strip()
-        full_job_text = f"{job_summary}. Location: {job_location}"
+        job_text = f"{job_summary}. Location: {job_location}"
+        emb = get_embedding(job_text)
 
-        job_emb = get_embedding(full_job_text)
-        if job_emb is None:
-            continue
+        if emb:
+            embeddings.append(emb)
+            valid_jobs.append(job)
+            geo_factors.append(compute_geo_penalty(location, job_location))
 
-        raw_score = cosine_similarity([cand_emb], [job_emb])[0][0]
-        job_coords = get_coordinates(job_location)
+    if not embeddings:
+        return []
 
-        distance_km = compute_distance_km(cand_coords, job_coords) if cand_coords and job_coords else None
-
-        # Adjust score by distance penalty
-        if distance_km is not None:
-            # Distance penalty (example: 1% penalty per 100km)
-            distance_penalty = 0.01 * (distance_km / 100)
-            adjusted_score = raw_score * (1 - min(distance_penalty, 0.5))  # cap penalty at 50%
-        else:
-            adjusted_score = raw_score  # no adjustment if unknown
-
-        job["Distance (km)"] = round(distance_km, 1) if distance_km else None
-        matches.append((job, adjusted_score, raw_score))
-
+    sim_scores = cosine_similarity([cand_emb], embeddings)[0]
+    adjusted_scores = [sim * geo for sim, geo in zip(sim_scores, geo_factors)]
+    matches = list(zip(valid_jobs, adjusted_scores))
     matches.sort(key=lambda x: x[1], reverse=True)
+
     return matches[:5]
 
 def suggest_missing_skills(candidate_skills, job_text):
-    """
-    Identify missing keywords in job description not present in candidate's skills.
-    """
     job_keywords = set(word.lower().strip(".,()") for word in job_text.split())
     cand_keywords = set(word.lower().strip() for word in candidate_skills.split(","))
     missing = job_keywords - cand_keywords
