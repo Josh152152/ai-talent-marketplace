@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from openai import OpenAI
@@ -22,11 +23,12 @@ def get_coordinates(location_name):
     if not location_name:
         return None
     try:
-        location = geolocator.geocode(location_name, timeout=10)
+        location = geolocator.geocode(location_name, timeout=5)
         if location:
             return (location.latitude, location.longitude)
     except Exception as e:
         print(f"🌍 Geocoding error for {location_name}: {e}")
+        time.sleep(1)  # small delay to prevent rapid-fire retries
     return None
 
 def compute_geo_penalty(loc1, loc2):
@@ -87,9 +89,10 @@ def match_jobs(candidate_record, job_rows):
             "score": round(float(adjusted), 4),
             "geo_penalty": round(penalty, 4),
             "geo_distance_km": round(distance_km, 2) if distance_km is not None else None,
-            "reason": ", ".join(set(word.lower().strip(".,()") for word in summary.split()) &
-                                set(word.lower().strip(".,()") for word in job.get("Job Summary", "").split()))
-                     or "Semantic and location match"
+            "reason": ", ".join(
+                set(word.lower().strip(".,()") for word in summary.split()) &
+                set(word.lower().strip(".,()") for word in job.get("Job Summary", "").split())
+            ) or "Semantic and location match"
         })
 
     matches.sort(key=lambda x: x["score"], reverse=True)
