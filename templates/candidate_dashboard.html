@@ -3,6 +3,10 @@
 <head>
   <title>Candidate Dashboard</title>
   <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
     .suggestion-box {
       border: 1px solid #ccc;
       padding: 16px;
@@ -21,6 +25,7 @@
   <p><strong>Your Current Skills:</strong> {{ data.Skills }}</p>
 
   <form method="POST" action="/update_skills">
+    <input type="hidden" name="email" value="{{ data.Email }}"> <!-- Include email in form -->
     <label for="skills">Update Skills (comma-separated):</label><br><br>
     <input type="text" name="skills" id="skills" value="{{ data.Skills }}"><br><br>
     <button type="submit">Update</button>
@@ -37,7 +42,7 @@
   <a href="/logout">Log out</a>
 
   <script>
-    const userEmail = "{{ data.Email }}";  // 🟢 Capture email from server
+    const userEmail = "{{ data.Email }}";
 
     async function fetchSuggestedSkills() {
       const response = await fetch("/suggest_skills", {
@@ -45,7 +50,7 @@
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ email: userEmail }) // 🟢 Pass email here
+        body: JSON.stringify({ email: userEmail })
       });
 
       const result = await response.json();
