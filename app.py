@@ -155,8 +155,11 @@ def match_jobs_route():
             return jsonify({"error": "Candidate not found"}), 404
 
         candidate_summary = candidate.get("Summary", "")
+        candidate_location = candidate.get("Location", "")
         if not candidate_summary.strip():
             return jsonify({"error": "Candidate summary is empty"}), 400
+
+        full_candidate_text = f"{candidate_summary}. Location: {candidate_location}"
 
         # Load job listings
         job_sheet = client.open_by_key(os.getenv("JOBS_SHEET_ID")).sheet1
@@ -165,9 +168,11 @@ def match_jobs_route():
         if not job_rows:
             return jsonify({"error": "No job summaries found"}), 404
 
-        top_matches = match_jobs(candidate_summary, job_rows)
+        for job in job_rows:
+            job["embedding_input"] = f"{job.get('Job Summary', '')}. Location: {job.get('Location', '')}"
 
-        # Keyword overlap reasoning
+        top_matches = match_jobs(full_candidate_text, job_rows)
+
         def extract_keywords(text):
             words = text.lower().split()
             return set(w.strip(".,()") for w in words if len(w) > 3)
@@ -179,8 +184,9 @@ def match_jobs_route():
             "top_matches": [
                 {
                     "summary": match[0].get("Job Summary", ""),
+                    "location": match[0].get("Location", ""),
                     "score": round(float(match[1]), 4),
-                    "reason": ", ".join(candidate_keywords & extract_keywords(match[0].get("Job Summary", ""))) or "Similar context and terminology"
+                    "reason": ", ".join(candidate_keywords & extract_keywords(match[0].get("Job Summary", ""))) or "Similar topic and context"
                 } for match in top_matches
             ]
         })
