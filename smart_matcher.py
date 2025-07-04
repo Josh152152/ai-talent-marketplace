@@ -6,51 +6,41 @@ from openai import OpenAI
 client = OpenAI()
 
 def get_embedding(text, model="text-embedding-3-large"):
-    try:
-        print(f"DEBUG: Getting embedding for text: {repr(text)}")
-        response = client.embeddings.create(
-            model=model,
-            input=text
-        )
-        embedding = response.data[0].embedding
-        if not embedding:
-            raise ValueError("Empty embedding returned.")
-        return embedding
-    except Exception as e:
-        print(f"🔥 Error in get_embedding: {e}")
+    if not text.strip():
         return None
+    response = client.embeddings.create(model=model, input=text.strip())
+    return response.data[0].embedding
 
-def match_jobs(candidate_text, job_summaries):
-    cand_emb = get_embedding(candidate_text)
-    if not cand_emb:
+def match_jobs(candidate_summary, job_rows):
+    """
+    Compare candidate summary to job summaries from job_rows.
+    Returns top 5 matches with similarity scores.
+    """
+    cand_emb = get_embedding(candidate_summary)
+    if cand_emb is None:
         return []
 
-    cand_emb = np.array(cand_emb).reshape(1, -1)
+    embeddings = []
+    valid_jobs = []
 
-    job_embeddings = []
-    job_texts = []
+    for job in job_rows:
+        job_text = job.get("Job Summary", "")
+        if job_text.strip():
+            emb = get_embedding(job_text)
+            if emb:
+                embeddings.append(emb)
+                valid_jobs.append(job)
 
-    for job in job_summaries:
-        summary = job.get("Job Summary", "")
-        emb = get_embedding(summary)
-        if emb:
-            job_embeddings.append(emb)
-            job_texts.append(job)
-
-    if not job_embeddings:
+    if not embeddings:
         return []
 
-    job_embeddings = np.array(job_embeddings)
-    similarities = cosine_similarity(cand_emb, job_embeddings)[0]
-    scored = list(zip(job_texts, similarities))
-    scored.sort(key=lambda x: x[1], reverse=True)
+    sim_scores = cosine_similarity([cand_emb], embeddings)[0]
+    matches = list(zip(valid_jobs, sim_scores))
+    matches.sort(key=lambda x: x[1], reverse=True)
 
-    return scored[:5]
+    return matches[:5]
 
 def suggest_missing_skills(candidate_skills, job_text):
-    """
-    Suggest up to 5 missing keywords that appear in job_text but not in candidate_skills.
-    """
     job_keywords = set(word.lower() for word in job_text.split())
     cand_keywords = set(word.lower().strip() for word in candidate_skills.split(","))
     missing = job_keywords - cand_keywords
