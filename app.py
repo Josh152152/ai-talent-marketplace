@@ -227,23 +227,34 @@ def debug_jobs():
         print(f"🔥 Error in /debug_jobs: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ------------------- SYSTEM ROUTES -------------------
+# ------------------- EMPLOYER DASHBOARD (NEW) -------------------
 
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"status": "ok", "message": "AI Talent Marketplace backend is running"})
+@app.route("/employer_dashboard", methods=["GET"])
+def employer_dashboard():
+    try:
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "healthy"})
+        anonymized = []
+        for idx, r in enumerate(records):
+            anonymized.append({
+                "id": idx,
+                "summary": r.get("Summary", "No summary provided"),
+                "skills": r.get("Skills", "No skills listed"),
+                "location": r.get("Location", "Unknown")
+            })
+
+        return render_template("employer_dashboard.html", candidates=anonymized)
+
+    except Exception as e:
+        print(f"🔥 Error in /employer_dashboard: {e}")
+        return "Employer dashboard failed", 500
 
 # ------------------- UNLOCK CANDIDATE PROFILE (NEW) -------------------
 
 @app.route("/unlock/<int:candidate_id>", methods=["GET"])
 def unlock_candidate(candidate_id):
-    """
-    Simulates unlocking a candidate's contact info for an employer.
-    """
     try:
         client = get_gspread_client()
         sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
