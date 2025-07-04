@@ -46,9 +46,6 @@ def compute_geo_penalty(loc1, loc2):
     return penalty_factor
 
 def match_jobs(candidate_record, job_rows):
-    """
-    Returns top 5 jobs matched to the candidate using semantic similarity and location penalty.
-    """
     summary = candidate_record.get("Summary", "").strip()
     location = candidate_record.get("Location", "").strip()
     full_text = f"{summary}. Location: {location}"
@@ -59,7 +56,7 @@ def match_jobs(candidate_record, job_rows):
 
     embeddings = []
     valid_jobs = []
-    geo_factors = []
+    geo_data = []  # stores (penalty, distance)
 
     for job in job_rows:
         job_summary = job.get("Job Summary", "").strip()
@@ -70,17 +67,43 @@ def match_jobs(candidate_record, job_rows):
         if emb:
             embeddings.append(emb)
             valid_jobs.append(job)
-            geo_factors.append(compute_geo_penalty(location, job_location))
+
+            # Get geo penalty and distance
+            coords1 = get_coordinates(location)
+            coords2 = get_coordinates(job_location)
+            if coords1 and coords2:
+                distance_km = geodesic(coords1, coords2).km
+                penalty = max(0.5, 1 - (distance_km / 20000))
+            else:
+                distance_km = None
+                penalty = 1.0
+
+            geo_data.append((penalty, distance_km))
 
     if not embeddings:
         return []
 
     sim_scores = cosine_similarity([cand_emb], embeddings)[0]
-    adjusted_scores = [sim * geo for sim, geo in zip(sim_scores, geo_factors)]
-    matches = list(zip(valid_jobs, adjusted_scores))
-    matches.sort(key=lambda x: x[1], reverse=True)
+    matches = []
 
+    for idx, job in enumerate(valid_jobs):
+        sim = sim_scores[idx]
+        penalty, distance_km = geo_data[idx]
+        adjusted = sim * penalty
+        matches.append({
+            "summary": job.get("Job Summary", ""),
+            "location": job.get("Job Location", ""),
+            "score": round(float(adjusted), 4),
+            "geo_penalty": round(penalty, 4),
+            "geo_distance_km": round(distance_km, 2) if distance_km is not None else None,
+            "reason": ", ".join(set(word.lower().strip(".,()") for word in summary.split()) &
+                                set(word.lower().strip(".,()") for word in job.get("Job Summary", "").split()))
+                     or "Semantic and location match"
+        })
+
+    matches.sort(key=lambda x: x["score"], reverse=True)
     return matches[:5]
+
 
 def suggest_missing_skills(candidate_skills, job_text):
     job_keywords = set(word.lower().strip(".,()") for word in job_text.split())
