@@ -3,10 +3,6 @@
 <head>
   <title>Candidate Dashboard</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-    }
     .suggestion-box {
       border: 1px solid #ccc;
       padding: 16px;
@@ -14,7 +10,7 @@
       margin-top: 24px;
       background: #f9f9f9;
     }
-    #suggested-skills-list li {
+    #suggested-skills-list li, #matched-jobs-list li {
       margin-bottom: 8px;
     }
   </style>
@@ -25,7 +21,7 @@
   <p><strong>Your Current Skills:</strong> {{ data.Skills }}</p>
 
   <form method="POST" action="/update_skills">
-    <input type="hidden" name="email" value="{{ data.Email }}"> <!-- Include email in form -->
+    <input type="hidden" name="email" value="{{ data.Email }}">
     <label for="skills">Update Skills (comma-separated):</label><br><br>
     <input type="text" name="skills" id="skills" value="{{ data.Skills }}"><br><br>
     <button type="submit">Update</button>
@@ -38,8 +34,15 @@
     <ul id="suggested-skills-list"></ul>
   </div>
 
+  <!-- 🎯 Matched Jobs Section -->
+  <div id="matched-jobs" class="suggestion-box">
+    <h3>🎯 Top Job Matches</h3>
+    <button onclick="fetchMatchedJobs()">Show My Matches</button>
+    <ul id="matched-jobs-list"></ul>
+  </div>
+
   <br>
-  <a href="/logout">Log out</a>
+  <a href="/">Back</a>
 
   <script>
     const userEmail = "{{ data.Email }}";
@@ -47,9 +50,7 @@
     async function fetchSuggestedSkills() {
       const response = await fetch("/suggest_skills", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: userEmail })
       });
 
@@ -60,13 +61,33 @@
       if (result.suggested_skills && result.suggested_skills.length > 0) {
         result.suggested_skills.forEach(skill => {
           const li = document.createElement("li");
-          li.textContent = `🧠 Learn "${skill.skill}" to unlock +${skill.extra_jobs_unlocked} more job postings`;
+          li.textContent = `🧠 Learn "${skill.skill}" to unlock +${skill.extra_jobs_unlocked} jobs`;
           skillList.appendChild(li);
         });
       } else {
-        const li = document.createElement("li");
-        li.textContent = "No suggestions available yet. Try updating your skills or location.";
-        skillList.appendChild(li);
+        skillList.innerHTML = "<li>No suggestions available.</li>";
+      }
+    }
+
+    async function fetchMatchedJobs() {
+      const response = await fetch("/match_jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail })
+      });
+
+      const result = await response.json();
+      const jobList = document.getElementById("matched-jobs-list");
+      jobList.innerHTML = "";
+
+      if (result.jobs && result.jobs.length > 0) {
+        result.jobs.forEach(job => {
+          const li = document.createElement("li");
+          li.textContent = `${job.title} @ ${job.company} (${job.location})`;
+          jobList.appendChild(li);
+        });
+      } else {
+        jobList.innerHTML = "<li>No job matches found.</li>";
       }
     }
   </script>
