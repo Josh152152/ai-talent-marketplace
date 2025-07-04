@@ -7,7 +7,7 @@ from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
 from adzuna_helper import query_jobs, detect_country
-from smart_matcher import suggest_missing_skills
+from smart_matcher import suggest_missing_skills, match_jobs
 
 # Ensure print() flushes immediately
 sys.stdout.reconfigure(line_buffering=True)
@@ -142,6 +142,46 @@ def debug_jobs():
 
     except Exception as e:
         print(f"🔥 Error in /debug_jobs: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ------------------- MATCHING VIA EMBEDDINGS -------------------
+
+@app.route("/match_jobs", methods=["POST"])
+def match_jobs_route():
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        if not email:
+            return jsonify({"error": "Missing email"}), 400
+
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        candidates = sheet.get_all_records()
+
+        candidate = next((r for r in candidates if r["Email"] == email), None)
+        if not candidate:
+            return jsonify({"error": "Candidate not found"}), 404
+
+        candidate_summary = candidate.get("Summary", "")
+        if not candidate_summary.strip():
+            return jsonify({"error": "Candidate summary is empty"}), 400
+
+        job_summaries = [row for row in candidates if row.get("Job Summary")]
+
+        top_matches = match_jobs(candidate_summary, job_summaries)
+
+        return jsonify({
+            "email": email,
+            "top_matches": [
+                {
+                    "summary": match[0].get("Job Summary", ""),
+                    "score": round(float(match[1]), 4)
+                } for match in top_matches
+            ]
+        })
+
+    except Exception as e:
+        print(f"🔥 Error in /match_jobs: {e}")
         return jsonify({"error": str(e)}), 500
 
 # ------------------- EMPLOYER DASHBOARD -------------------
