@@ -1,18 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Employer Dashboard</title>
+    <meta charset="UTF-8">
+    <title>Unlocked Candidate Profile</title>
 </head>
 <body>
-    <h1>🔍 Browse Candidates</h1>
+    <h1>🎉 Candidate Unlocked</h1>
 
-    {% for c in candidates %}
-        <div style="border:1px solid #ccc; padding:10px; margin:10px;">
-            <p><strong>Location:</strong> {{ c.location }}</p>
-            <p><strong>Skills:</strong> {{ c.skills }}</p>
-            <p><strong>Summary:</strong> {{ c.summary }}</p>
-            <a href="/unlock/{{ c.id }}">🔓 Unlock Contact</a>
-        </div>
-    {% endfor %}
+    <div style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;">
+        <p><strong>Name:</strong> {{ candidate['Name'] }}</p>
+        <p><strong>Email:</strong> {{ candidate['Email'] }}</p>
+        <p><strong>Location:</strong> {{ candidate['Location'] }}</p>
+        <p><strong>Skills:</strong> {{ candidate['Skills'] }}</p>
+        <p><strong>Summary:</strong></p>
+        <p>{{ candidate['Summary'] }}</p>
+    </div>
+
+    <a href="/employer_dashboard">🔙 Back to Employer Dashboard</a>
 </body>
 </html>
