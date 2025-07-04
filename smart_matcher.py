@@ -18,7 +18,7 @@ def get_embedding(text, model="text-embedding-3-large"):
         return embedding
     except Exception as e:
         print(f"🔥 Error in get_embedding: {e}")
-        return None  # Explicitly return None if it fails
+        return None
 
 def match_jobs(candidate_text, job_summaries):
     cand_emb = get_embedding(candidate_text)
@@ -46,3 +46,12 @@ def match_jobs(candidate_text, job_summaries):
     scored.sort(key=lambda x: x[1], reverse=True)
 
     return scored[:5]
+
+def suggest_missing_skills(candidate_skills, job_text):
+    """
+    Suggest up to 5 missing keywords that appear in job_text but not in candidate_skills.
+    """
+    job_keywords = set(word.lower() for word in job_text.split())
+    cand_keywords = set(word.lower().strip() for word in candidate_skills.split(","))
+    missing = job_keywords - cand_keywords
+    return list(missing)[:5]
