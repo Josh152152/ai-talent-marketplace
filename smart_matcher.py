@@ -22,7 +22,7 @@ def get_coordinates(location_name):
     if not location_name:
         return None
     try:
-        location = geolocator.geocode(location_name)
+        location = geolocator.geocode(location_name, timeout=10)
         if location:
             return (location.latitude, location.longitude)
     except Exception as e:
@@ -33,17 +33,17 @@ def compute_geo_penalty(loc1, loc2):
     """
     Returns a penalty factor (0–1). 
     The farther the distance, the lower the factor.
-    Max penalty at ~10,000 km → 50% similarity reduction.
+    Max penalty at ~20,000 km → 50% similarity reduction.
     """
     coords1 = get_coordinates(loc1)
     coords2 = get_coordinates(loc2)
 
     if not coords1 or not coords2:
-        return 1.0  # no penalty if location unknown
+        return 1.0, None  # No penalty if unknown
 
     distance_km = geodesic(coords1, coords2).km
-    penalty_factor = max(0.5, 1 - (distance_km / 20000))  # max 50% penalty
-    return penalty_factor
+    penalty_factor = max(0.5, 1 - (distance_km / 20000))
+    return penalty_factor, distance_km
 
 def match_jobs(candidate_record, job_rows):
     summary = candidate_record.get("Summary", "").strip()
@@ -56,7 +56,7 @@ def match_jobs(candidate_record, job_rows):
 
     embeddings = []
     valid_jobs = []
-    geo_data = []  # stores (penalty, distance)
+    geo_data = []
 
     for job in job_rows:
         job_summary = job.get("Job Summary", "").strip()
@@ -68,16 +68,7 @@ def match_jobs(candidate_record, job_rows):
             embeddings.append(emb)
             valid_jobs.append(job)
 
-            # Get geo penalty and distance
-            coords1 = get_coordinates(location)
-            coords2 = get_coordinates(job_location)
-            if coords1 and coords2:
-                distance_km = geodesic(coords1, coords2).km
-                penalty = max(0.5, 1 - (distance_km / 20000))
-            else:
-                distance_km = None
-                penalty = 1.0
-
+            penalty, distance_km = compute_geo_penalty(location, job_location)
             geo_data.append((penalty, distance_km))
 
     if not embeddings:
@@ -103,7 +94,6 @@ def match_jobs(candidate_record, job_rows):
 
     matches.sort(key=lambda x: x["score"], reverse=True)
     return matches[:5]
-
 
 def suggest_missing_skills(candidate_skills, job_text):
     job_keywords = set(word.lower().strip(".,()") for word in job_text.split())
