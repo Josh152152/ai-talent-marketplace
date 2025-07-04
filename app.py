@@ -19,13 +19,9 @@ app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
-# ------------------- HEALTH -------------------
-
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "healthy"}), 200
-
-# ------------------- DASHBOARD -------------------
 
 @app.route("/dashboard", methods=["GET"])
 def candidate_dashboard():
@@ -69,8 +65,6 @@ def update_skills():
         print(f"🔥 Error in /update_skills: {e}")
         return "Internal server error", 500
 
-# ------------------- SUGGEST SKILLS -------------------
-
 @app.route("/suggest_skills", methods=["POST"])
 def suggest_skills():
     try:
@@ -97,8 +91,6 @@ def suggest_skills():
     except Exception as e:
         print(f"🔥 Error in /suggest_skills: {e}")
         return jsonify({"error": str(e)}), 500
-
-# ------------------- JOB SEARCH -------------------
 
 @app.route("/debug_jobs", methods=["POST"])
 def debug_jobs():
@@ -135,8 +127,6 @@ def debug_jobs():
         print(f"🔥 Error in /debug_jobs: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ------------------- MATCH JOBS -------------------
-
 @app.route("/match_jobs", methods=["POST"])
 def match_jobs_route():
     try:
@@ -147,7 +137,6 @@ def match_jobs_route():
 
         client = get_gspread_client()
 
-        # Load candidate info
         cand_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         candidates = cand_sheet.get_all_records()
         candidate = next((r for r in candidates if r["Email"] == email), None)
@@ -157,37 +146,21 @@ def match_jobs_route():
         if not candidate.get("Summary", "").strip():
             return jsonify({"error": "Candidate summary is empty"}), 400
 
-        # Load job listings
         job_sheet = client.open_by_key(os.getenv("JOBS_SHEET_ID")).sheet1
         job_rows = [r for r in job_sheet.get_all_records() if r.get("Job Summary")]
 
         if not job_rows:
             return jsonify({"error": "No job summaries found"}), 404
 
-        top_matches = match_jobs(candidate, job_rows)
-
-        def extract_keywords(text):
-            words = text.lower().split()
-            return set(w.strip(".,()") for w in words if len(w) > 3)
-
-        candidate_keywords = extract_keywords(candidate.get("Summary", ""))
+        matches = match_jobs(candidate, job_rows)
 
         return jsonify({
             "email": email,
-            "top_matches": [
-                {
-                    "summary": match[0].get("Job Summary", ""),
-                    "location": match[0].get("Job Location", ""),
-                    "score": round(float(match[1]), 4),
-                    "reason": ", ".join(candidate_keywords & extract_keywords(match[0].get("Job Summary", ""))) or "Similar topic and context"
-                } for match in top_matches
-            ]
+            "top_matches": matches
         })
     except Exception as e:
         print(f"🔥 Error in /match_jobs: {e}")
         return jsonify({"error": str(e)}), 500
-
-# ------------------- EMPLOYER DASHBOARD -------------------
 
 @app.route("/employer_dashboard", methods=["GET"])
 def employer_dashboard():
@@ -210,8 +183,6 @@ def employer_dashboard():
         print(f"🔥 Error in /employer_dashboard: {e}")
         return "Employer dashboard failed", 500
 
-# ------------------- UNLOCK PROFILE -------------------
-
 @app.route("/unlock/<int:candidate_id>", methods=["GET"])
 def unlock_candidate(candidate_id):
     try:
@@ -227,8 +198,6 @@ def unlock_candidate(candidate_id):
     except Exception as e:
         print(f"🔥 Error in /unlock/{candidate_id}: {e}")
         return "Unlock failed", 500
-
-# ------------------- HOME -------------------
 
 @app.route("/", methods=["GET"])
 def home():
