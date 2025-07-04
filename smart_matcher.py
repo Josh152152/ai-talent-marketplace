@@ -23,6 +23,7 @@ def get_embedding(text, model="text-embedding-3-large"):
 
 def get_coordinates(location_name):
     if not location_name:
+        print(f"⚠️ No location provided.")
         return None
     if location_name in _geocode_cache:
         return _geocode_cache[location_name]
@@ -31,9 +32,12 @@ def get_coordinates(location_name):
         if location:
             coords = (location.latitude, location.longitude)
             _geocode_cache[location_name] = coords
+            print(f"📍 Geocoded '{location_name}' → {coords}")
             return coords
+        else:
+            print(f"❌ No geocoding result for '{location_name}'")
     except Exception as e:
-        print(f"🌍 Geocoding error for {location_name}: {e}")
+        print(f"🌍 Geocoding error for '{location_name}': {e}")
     return None
 
 def compute_geo_penalty(loc1, loc2):
