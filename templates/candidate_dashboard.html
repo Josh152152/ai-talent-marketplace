@@ -38,11 +38,14 @@
 
   <script>
     async function fetchSuggestedSkills() {
+      const email = "{{ data.Email }}"; // ✅ email injected into JavaScript
+
       const response = await fetch("/suggest_skills", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
-        }
+        },
+        body: JSON.stringify({ email })
       });
 
       const result = await response.json();
