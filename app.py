@@ -146,9 +146,10 @@ def match_jobs_route():
             return jsonify({"error": "Missing email"}), 400
 
         client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        candidates = sheet.get_all_records()
 
+        # 🔍 Candidate summary
+        cand_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        candidates = cand_sheet.get_all_records()
         candidate = next((r for r in candidates if r["Email"] == email), None)
         if not candidate:
             return jsonify({"error": "Candidate not found"}), 404
@@ -157,9 +158,14 @@ def match_jobs_route():
         if not candidate_summary.strip():
             return jsonify({"error": "Candidate summary is empty"}), 400
 
-        job_summaries = [row for row in candidates if row.get("Job Summary")]
+        # 📄 Job summaries from separate job sheet
+        job_sheet = client.open_by_key(os.getenv("JOBS_SHEET_ID")).sheet1
+        job_rows = [r for r in job_sheet.get_all_records() if r.get("Job Summary")]
 
-        top_matches = match_jobs(candidate_summary, job_summaries)
+        if not job_rows:
+            return jsonify({"error": "No job summaries found"}), 404
+
+        top_matches = match_jobs(candidate_summary, job_rows)
 
         return jsonify({
             "email": email,
@@ -170,6 +176,7 @@ def match_jobs_route():
                 } for match in top_matches
             ]
         })
+
     except Exception as e:
         print(f"🔥 Error in /match_jobs: {e}")
         return jsonify({"error": str(e)}), 500
