@@ -7,13 +7,20 @@
   <h2>Welcome, {{ data["Name"] or "Candidate" }} 👋</h2>
 
   <p><strong>Email:</strong> {{ data["Email"] }}</p>
-  <p><strong>Location:</strong> {{ data.get("Location", "Not set") }}</p>
 
-  <p><strong>Your Current Summary:</strong></p>
-  <form method="POST" action="/update_summary">
-    <textarea name="summary" rows="6" cols="60">{{ data.get("Summary", "Not set yet") }}</textarea><br><br>
+  <form method="POST" action="/update_candidate_profile">
     <input type="hidden" name="email" value="{{ data['Email'] }}">
-    <button type="submit">Update Summary</button>
+
+    <p><strong>Location:</strong></p>
+    <input type="text" name="location" value="{{ data.get('Location', '') }}"><br><br>
+
+    <p><strong>Radius (km):</strong></p>
+    <input type="number" name="radius" value="{{ data.get('Radius', '') }}"><br><br>
+
+    <p><strong>Your Current Summary:</strong></p>
+    <textarea name="summary" rows="6" cols="60">{{ data.get("Summary", "Not set yet") }}</textarea><br><br>
+
+    <button type="submit">Update Profile</button>
   </form>
 
   <br>
