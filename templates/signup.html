@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign Up</title>
+</head>
+<body>
+  <h2>Sign Up</h2>
+  <form method="POST" action="/signup">
+    <input type="email" name="email" placeholder="Email" required /><br><br>
+    <input type="password" name="password" placeholder="Password" required /><br><br>
+
+    <label>Select Role:</label><br>
+    <input type="radio" name="type" value="Candidate" required> Candidate<br>
+    <input type="radio" name="type" value="Employer" required> Employer<br><br>
+
+    <button type="submit">Sign Up</button>
+  </form>
+</body>
+</html>
