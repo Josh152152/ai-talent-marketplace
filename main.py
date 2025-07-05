@@ -1,81 +1,25 @@
-import bcrypt
-from flask import Blueprint, request, redirect, render_template
-from sheets import get_gspread_client
+from flask import Flask
+from flask_cors import CORS
 import os
 
-auth = Blueprint("auth", __name__)
+from auth import auth
+from candidate_registration import CandidateRegistrationSystem
+from matching_system import MatchingSystem
 
-SHEET_NAME = "AI Talent Users"
+app = Flask(__name__)
+CORS(app)
+app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
-def get_user_from_sheet(email):
-    client = get_gspread_client()
-    sheet = client.open(SHEET_NAME).sheet1
-    users = sheet.get_all_records()
+# Register Blueprints and services
+app.register_blueprint(auth)
+registration = CandidateRegistrationSystem()
+matcher = MatchingSystem()
 
-    for user in users:
-        if user["Email"].strip().lower() == email.strip().lower():
-            return user
-    return None
+@app.route("/health", methods=["GET"])
+def health():
+    return {"status": "ok"}, 200
 
-def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
-    client = get_gspread_client()
+# (Optional) Add other basic routes here
 
-    # ✅ Add to AI Talent Users
-    users_sheet = client.open(SHEET_NAME).sheet1
-    users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
-
-    # ✅ Add to Candidates sheet (if Candidate)
-    if user_type.strip().lower() == "candidate":
-        candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-
-        # Fixed column order (11 columns, radius = column K)
-        # [A] Email, [B] Name, [C] Skills, [D] Location, [E] Summary, [F] Job Title,
-        # [G] Job Count, [H] Interview Questions, [I] Embedding, [J] Timestamp, [K] Radius
-        new_row = [""] * 11
-        new_row[0] = email
-        new_row[1] = name
-        new_row[10] = radius  # Radius in column K
-
-        candidates_sheet.append_row(new_row)
-
-@auth.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "GET":
-        return render_template("signup.html")
-
-    name = request.form.get("name", "").strip()
-    email = request.form.get("email", "").strip().lower()
-    password = request.form.get("password", "")
-    user_type = request.form.get("type", "").strip()
-
-    if not name or not email or not password or not user_type:
-        return "Missing fields", 400
-
-    if get_user_from_sheet(email):
-        return "User already exists", 400
-
-    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_sheet(name, email, hashed, user_type)
-
-    return redirect("/login")
-
-@auth.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "GET":
-        return render_template("login.html")
-
-    email = request.form.get("email", "").strip().lower()
-    password = request.form.get("password", "")
-
-    user = get_user_from_sheet(email)
-    if not user:
-        return "Invalid credentials", 401
-
-    stored_hash = user["Password_Hash"].encode("utf-8")
-    if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
-        return "Invalid credentials", 401
-
-    if user["Type"].strip().lower() == "candidate":
-        return redirect(f"/dashboard?email={email}")
-    else:
-        return redirect("/employer_dashboard")
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
