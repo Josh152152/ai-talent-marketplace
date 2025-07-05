@@ -8,6 +8,7 @@ auth = Blueprint("auth", __name__)
 
 SHEET_NAME = "AI Talent Users"
 
+# Function to retrieve a user by email from Google Sheets
 def get_user_from_sheet(email):
     client = get_gspread_client()
     sheet = client.open(SHEET_NAME).sheet1
@@ -18,15 +19,16 @@ def get_user_from_sheet(email):
             return user
     return None
 
+# Function to add a new user to Google Sheets
 def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
     client = get_gspread_client()
 
-    # ✅ Add to AI Talent Users sheet
+    # Add to AI Talent Users sheet
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
     print(f"✅ Added user to {SHEET_NAME}")
 
-    # ✅ If candidate, also add stub row to Candidates sheet
+    # If the user is a candidate, add a stub row to the Candidates sheet
     if user_type.strip().lower() == "candidate":
         sheet_id = os.getenv("CANDIDATES_SHEET_ID")
         print(f"📄 DEBUG: CANDIDATES_SHEET_ID = {sheet_id}")
@@ -46,7 +48,7 @@ def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
             print(f"🔥 Failed to write to Candidates sheet: {e}")
             raise
 
-# Route for signup page
+# Route for signup page (GET and POST methods)
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "GET":
@@ -65,7 +67,7 @@ def signup():
     if get_user_from_sheet(email):
         return "User already exists", 400
 
-    # Hash password
+    # Hash the password
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
     try:
@@ -75,10 +77,10 @@ def signup():
         print(f"🔥 Error during signup/add_user_to_sheet: {e}")
         return f"Internal server error: {str(e)}", 500
 
-    # Redirect to login
-    return redirect("/login")
+    # Redirect to login after successful signup
+    return redirect("/auth/login")
 
-# Route for login page
+# Route for login page (GET and POST methods)
 @auth.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
@@ -95,7 +97,7 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
-    # Redirect to the appropriate dashboard
+    # Redirect to the appropriate dashboard based on user type
     if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
