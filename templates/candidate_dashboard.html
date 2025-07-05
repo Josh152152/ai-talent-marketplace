@@ -2,94 +2,40 @@
 <html>
 <head>
   <title>Candidate Dashboard</title>
-  <style>
-    .suggestion-box {
-      border: 1px solid #ccc;
-      padding: 16px;
-      border-radius: 12px;
-      margin-top: 24px;
-      background: #f9f9f9;
-    }
-    #suggested-skills-list li, #matched-jobs-list li {
-      margin-bottom: 8px;
-    }
-  </style>
 </head>
 <body>
-  <h2>Welcome, {{ data.Email }}</h2>
+  <h2>Welcome, {{ data["Name"] or "Candidate" }} 👋</h2>
 
-  <p><strong>Your Current Skills:</strong> {{ data.Skills }}</p>
+  <p><strong>Email:</strong> {{ data["Email"] }}</p>
+  <p><strong>Location:</strong> {{ data.get("Location", "Not set") }}</p>
 
-  <form method="POST" action="/update_skills">
-    <input type="hidden" name="email" value="{{ data.Email }}">
-    <label for="skills">Update Skills (comma-separated):</label><br><br>
-    <input type="text" name="skills" id="skills" value="{{ data.Skills }}"><br><br>
-    <button type="submit">Update</button>
+  <p><strong>Your Current Summary:</strong></p>
+  <form method="POST" action="/update_summary">
+    <textarea name="summary" rows="6" cols="60">{{ data.get("Summary", "Not set yet") }}</textarea><br><br>
+    <input type="hidden" name="email" value="{{ data['Email'] }}">
+    <button type="submit">Update Summary</button>
   </form>
 
-  <!-- 🔍 AI Skill Suggestions Section -->
-  <div id="skill-suggestions" class="suggestion-box">
-    <h3>🚀 AI Skill Suggestions to Boost Your Job Matches</h3>
-    <button onclick="fetchSuggestedSkills()">Get Skill Suggestions</button>
-    <ul id="suggested-skills-list"></ul>
-  </div>
+  <br>
+  <form method="GET" action="/logout">
+    <button type="submit">Sign Off</button>
+  </form>
 
-  <!-- 🎯 Matched Jobs Section -->
-  <div id="matched-jobs" class="suggestion-box">
-    <h3>🎯 Top Job Matches</h3>
-    <button onclick="fetchMatchedJobs()">Show My Matches</button>
-    <ul id="matched-jobs-list"></ul>
-  </div>
+  <hr>
+
+  <h3>🚀 AI Skill Suggestions to Boost Your Job Matches</h3>
+  <form method="POST" action="/suggest_skills">
+    <input type="hidden" name="email" value="{{ data['Email'] }}">
+    <button type="submit">Get Skill Suggestions</button>
+  </form>
+
+  <h3>🎯 Top Job Matches</h3>
+  <form method="POST" action="/match_jobs">
+    <input type="hidden" name="email" value="{{ data['Email'] }}">
+    <button type="submit">Show My Matches</button>
+  </form>
 
   <br>
-  <a href="/">Back</a>
-
-  <script>
-    const userEmail = "{{ data.Email }}";
-
-    async function fetchSuggestedSkills() {
-      const response = await fetch("/suggest_skills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail })
-      });
-
-      const result = await response.json();
-      const skillList = document.getElementById("suggested-skills-list");
-      skillList.innerHTML = "";
-
-      if (result.suggested_skills && result.suggested_skills.length > 0) {
-        result.suggested_skills.forEach(skill => {
-          const li = document.createElement("li");
-          li.textContent = `🧠 Learn "${skill.skill}" to unlock +${skill.extra_jobs_unlocked} jobs`;
-          skillList.appendChild(li);
-        });
-      } else {
-        skillList.innerHTML = "<li>No suggestions available.</li>";
-      }
-    }
-
-    async function fetchMatchedJobs() {
-      const response = await fetch("/match_jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail })
-      });
-
-      const result = await response.json();
-      const jobList = document.getElementById("matched-jobs-list");
-      jobList.innerHTML = "";
-
-      if (result.jobs && result.jobs.length > 0) {
-        result.jobs.forEach(job => {
-          const li = document.createElement("li");
-          li.textContent = `${job.title} @ ${job.company} (${job.location})`;
-          jobList.appendChild(li);
-        });
-      } else {
-        jobList.innerHTML = "<li>No job matches found.</li>";
-      }
-    }
-  </script>
+  <a href="/">⬅ Back</a>
 </body>
 </html>
