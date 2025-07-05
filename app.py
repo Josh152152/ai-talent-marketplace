@@ -1,224 +1,81 @@
-from flask import Flask, request, jsonify, render_template, redirect
-from flask_cors import CORS
-import os
-import sys
-from dotenv import load_dotenv
-
-# Load environment variables
-sys.stdout.reconfigure(line_buffering=True)
-load_dotenv()
-
-app = Flask(__name__)
-CORS(app)
-app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
-
-# Import project modules
+import bcrypt
+from flask import Blueprint, request, redirect, render_template
 from sheets import get_gspread_client
-from candidate_registration import CandidateRegistrationSystem
-from matching_system import MatchingSystem
-from adzuna_helper import query_jobs, detect_country
-from smart_matcher import match_jobs
-from auth import auth
+import os
 
-app.register_blueprint(auth)
+auth = Blueprint("auth", __name__)
 
-registration = CandidateRegistrationSystem()
-matcher = MatchingSystem()
+SHEET_NAME = "AI Talent Users"
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "healthy"}), 200
+def get_user_from_sheet(email):
+    client = get_gspread_client()
+    sheet = client.open(SHEET_NAME).sheet1
+    users = sheet.get_all_records()
 
-@app.route("/dashboard", methods=["GET"])
-def candidate_dashboard():
-    try:
-        email = request.args.get("email", "").strip().lower()
-        if not email:
-            return "Missing email", 400
+    for user in users:
+        if user["Email"].strip().lower() == email.strip().lower():
+            return user
+    return None
 
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
+def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
+    client = get_gspread_client()
 
-        for row in records:
-            if row.get("Email", "").strip().lower() == email:
-                return render_template("candidate_dashboard.html", data=row)
+    # ✅ Add to AI Talent Users
+    users_sheet = client.open(SHEET_NAME).sheet1
+    users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-        return render_template("candidate_dashboard.html", data={"Email": email, "Name": "Candidate", "Summary": "Not set yet"})
-    except Exception as e:
-        print(f"🔥 Error in /dashboard: {e}")
-        return "Dashboard error", 500
+    # ✅ Add to Candidates sheet (if Candidate)
+    if user_type.strip().lower() == "candidate":
+        candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
 
-@app.route("/update_candidate_profile", methods=["POST"])
-def update_candidate_profile():
-    try:
-        email = request.form.get("email", "").strip().lower()
-        summary = request.form.get("summary", "")
-        location = request.form.get("location", "")
-        radius = request.form.get("radius", "")
+        # Fixed column order (11 columns, radius = column K)
+        # [A] Email, [B] Name, [C] Skills, [D] Location, [E] Summary, [F] Job Title,
+        # [G] Job Count, [H] Interview Questions, [I] Embedding, [J] Timestamp, [K] Radius
+        new_row = [""] * 11
+        new_row[0] = email
+        new_row[1] = name
+        new_row[10] = radius  # Radius in column K
 
-        if not email:
-            return "Missing email", 400
+        candidates_sheet.append_row(new_row)
 
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
+@auth.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "GET":
+        return render_template("signup.html")
 
-        for i, row in enumerate(records):
-            if row.get("Email", "").strip().lower() == email:
-                if location:
-                    sheet.update_cell(i + 2, 4, location)
-                if summary:
-                    sheet.update_cell(i + 2, 5, summary)
-                if radius:
-                    sheet.update_cell(i + 2, 13, radius)
-                return redirect(f"/dashboard?email={email}")
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    user_type = request.form.get("type", "").strip()
 
-        return "Candidate not found.", 404
-    except Exception as e:
-        print(f"🔥 Error in /update_candidate_profile: {e}")
-        return "Internal server error", 500
+    if not name or not email or not password or not user_type:
+        return "Missing fields", 400
 
-@app.route("/suggest_skills", methods=["POST"])
-def suggest_skills():
-    try:
-        data = request.get_json() or request.form
-        email = data.get("email", "").strip().lower()
-        if not email:
-            return jsonify({"error": "Email is required"}), 400
+    if get_user_from_sheet(email):
+        return "User already exists", 400
 
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
+    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    add_user_to_sheet(name, email, hashed, user_type)
 
-        candidate = next((r for r in records if r.get("Email", "").strip().lower() == email), None)
-        if not candidate:
-            return jsonify({"error": "Candidate not found"}), 404
-
-        skills = [s.strip().lower() for s in candidate.get("Skills", "").split(",") if s.strip()]
-        location = candidate.get("Location", "")
-
-        from adzuna_helper import suggest_skill_expansion
-        suggestions = suggest_skill_expansion(skills, location)
-
-        return jsonify({"email": email, "suggested_skills": suggestions})
-    except Exception as e:
-        print(f"🔥 Error in /suggest_skills: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/debug_jobs", methods=["POST"])
-def debug_jobs():
-    try:
-        data = request.get_json()
-        email = data.get("email", "").strip().lower()
-        if not email:
-            return jsonify({"error": "Missing email"}), 400
-
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
-
-        candidate = next((r for r in records if r.get("Email", "").strip().lower() == email), None)
-        if not candidate:
-            return jsonify({"error": "Candidate not found"}), 404
-
-        skills = candidate.get("Skills", "")
-        summary = candidate.get("Summary", "")
-        location = candidate.get("Location", "")
-
-        keywords = f"{skills} {summary}".strip()
-        result = query_jobs(keywords=keywords, location=location, max_results=10)
-
-        return jsonify({
-            "email": email,
-            "location": location,
-            "country_detected": detect_country(location),
-            "keywords_used": keywords,
-            "job_count": result.get("count", 0),
-            "examples": result.get("examples", [])
-        })
-    except Exception as e:
-        print(f"🔥 Error in /debug_jobs: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/match_jobs", methods=["POST"])
-def match_jobs_route():
-    try:
-        data = request.get_json() or request.form
-        email = data.get("email", "").strip().lower()
-        if not email:
-            return jsonify({"error": "Missing email"}), 400
-
-        client = get_gspread_client()
-        cand_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        candidates = cand_sheet.get_all_records()
-        candidate = next((r for r in candidates if r.get("Email", "").strip().lower() == email), None)
-        if not candidate:
-            return jsonify({"error": "Candidate not found"}), 404
-
-        if not candidate.get("Summary", "").strip():
-            return jsonify({"error": "Candidate summary is empty"}), 400
-
-        job_sheet = client.open_by_key(os.getenv("JOBS_SHEET_ID")).sheet1
-        job_rows = [r for r in job_sheet.get_all_records() if r.get("Job Summary")]
-
-        if not job_rows:
-            return jsonify({"error": "No job summaries found"}), 404
-
-        matches = match_jobs(candidate, job_rows)
-
-        return jsonify({
-            "email": email,
-            "top_matches": matches
-        })
-    except Exception as e:
-        print(f"🔥 Error in /match_jobs: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/employer_dashboard", methods=["GET"])
-def employer_dashboard():
-    try:
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
-
-        anonymized = []
-        for idx, r in enumerate(records):
-            anonymized.append({
-                "id": idx,
-                "summary": r.get("Summary", "No summary provided"),
-                "skills": r.get("Skills", "No skills listed"),
-                "location": r.get("Location", "Unknown")
-            })
-
-        return render_template("employer_dashboard.html", candidates=anonymized)
-    except Exception as e:
-        print(f"🔥 Error in /employer_dashboard: {e}")
-        return "Employer dashboard failed", 500
-
-@app.route("/unlock/<int:candidate_id>", methods=["GET"])
-def unlock_candidate(candidate_id):
-    try:
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        candidates = sheet.get_all_records()
-
-        if candidate_id < 0 or candidate_id >= len(candidates):
-            return "Candidate not found", 404
-
-        candidate = candidates[candidate_id]
-        return render_template("unlocked_candidate.html", candidate=candidate)
-    except Exception as e:
-        print(f"🔥 Error in /unlock/{candidate_id}: {e}")
-        return "Unlock failed", 500
-
-@app.route("/logout", methods=["GET"])
-def logout():
     return redirect("/login")
 
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"status": "ok", "message": "AI Talent Marketplace backend is running"})
+@auth.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+
+    user = get_user_from_sheet(email)
+    if not user:
+        return "Invalid credentials", 401
+
+    stored_hash = user["Password_Hash"].encode("utf-8")
+    if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
+        return "Invalid credentials", 401
+
+    if user["Type"].strip().lower() == "candidate":
+        return redirect(f"/dashboard?email={email}")
+    else:
+        return redirect("/employer_dashboard")
