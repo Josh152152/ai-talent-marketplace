@@ -23,7 +23,7 @@ def get_embedding(text, model="text-embedding-3-large"):
 
 def get_coordinates(location_name):
     if not location_name:
-        print(f"⚠️ No location provided.")
+        print("⚠️ No location provided.")
         return None
     if location_name in _geocode_cache:
         return _geocode_cache[location_name]
@@ -42,15 +42,15 @@ def get_coordinates(location_name):
 
 def compute_geo_penalty(loc1, loc2):
     """
-    Returns a penalty factor (0–1). 
-    The farther the distance, the lower the factor.
-    Max penalty at ~20,000 km → 50% similarity reduction.
+    Returns a penalty factor (0–1).
+    Farther distances reduce similarity.
+    Max penalty (0.5) at ~20,000 km.
     """
     coords1 = get_coordinates(loc1)
     coords2 = get_coordinates(loc2)
 
     if not coords1 or not coords2:
-        return 1.0, None  # No penalty if unknown
+        return 1.0, None  # No penalty if geocoding fails
 
     distance_km = geodesic(coords1, coords2).km
     penalty_factor = max(0.5, 1 - (distance_km / 20000))
@@ -78,7 +78,6 @@ def match_jobs(candidate_record, job_rows):
         if emb:
             embeddings.append(emb)
             valid_jobs.append(job)
-
             penalty, distance_km = compute_geo_penalty(location, job_location)
             geo_data.append((penalty, distance_km))
 
@@ -92,15 +91,17 @@ def match_jobs(candidate_record, job_rows):
         sim = sim_scores[idx]
         penalty, distance_km = geo_data[idx]
         adjusted = sim * penalty
+        summary_words = set(word.lower().strip(".,()") for word in summary.split())
+        job_words = set(word.lower().strip(".,()") for word in job.get("Job Summary", "").split())
+        overlap = summary_words & job_words
+
         matches.append({
             "summary": job.get("Job Summary", ""),
             "location": job.get("Job Location", ""),
             "score": round(float(adjusted), 4),
             "geo_penalty": round(penalty, 4),
             "geo_distance_km": round(distance_km, 2) if distance_km is not None else None,
-            "reason": ", ".join(set(word.lower().strip(".,()") for word in summary.split()) &
-                                set(word.lower().strip(".,()") for word in job.get("Job Summary", "").split()))
-                     or "Semantic and location match"
+            "reason": ", ".join(overlap) or "Semantic and location match"
         })
 
     matches.sort(key=lambda x: x["score"], reverse=True)
