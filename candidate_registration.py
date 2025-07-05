@@ -6,7 +6,7 @@ from itsdangerous import URLSafeSerializer
 from datetime import datetime
 import requests
 from openai import OpenAI
-from adzuna_helper import detect_country  # Make sure this exists and is imported
+from adzuna_helper import detect_country  # Ensure this exists
 
 class CandidateRegistrationSystem:
     def __init__(self):
@@ -81,7 +81,7 @@ class CandidateRegistrationSystem:
             skills = data.get("skills")
             location = data.get("location")
             summary = data.get("summary")
-            radius_km = data.get("radius_km", 50)  # default radius 50 km
+            radius_km = data.get("radius_km", 50)
 
             if not email or not name or not skills or not location or not summary:
                 return jsonify({
@@ -112,11 +112,24 @@ class CandidateRegistrationSystem:
 
             candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
             timestamp = datetime.now().isoformat()
-            candidates_sheet.append_row([
-                email, name, skills, location, summary, job_title, job_count,
-                "\n".join(interview_questions), timestamp
-            ])
-            print(f"✅ Created profile for: {email} with job title and interview questions")
+
+            # Make sure we write exactly 11 columns
+            row = [
+                email,               # A - Email
+                name,                # B - Name
+                skills,              # C - Skills
+                location,            # D - Location
+                summary,             # E - Summary
+                job_title,           # F - Job Title
+                job_count,           # G - Job Count
+                "\n".join(interview_questions),  # H - Interview Questions
+                "",                  # I - Embedding (empty)
+                timestamp,           # J - Timestamp
+                str(radius_km)       # K - Radius
+            ]
+
+            candidates_sheet.append_row(row)
+            print(f"✅ Created profile for: {email}")
 
             dashboard_link = "https://ai-talent-marketplace.onrender.com/dashboard"
             return jsonify({
