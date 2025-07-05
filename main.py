@@ -33,6 +33,11 @@ def debug_env():
 def signup_test():
     return "Signup route is alive", 200
 
+# Simple route to confirm server is working correctly
+@app.route("/test-server")
+def test_server():
+    return "Server is live!", 200
+
 # Health check route for Render
 @app.route("/health", methods=["GET"])
 def health():
