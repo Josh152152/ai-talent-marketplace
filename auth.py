@@ -4,7 +4,6 @@ from sheets import get_gspread_client
 import os
 
 auth = Blueprint("auth", __name__)
-
 SHEET_NAME = "AI Talent Users"
 
 def get_user_from_sheet(email):
@@ -20,23 +19,22 @@ def get_user_from_sheet(email):
 def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
     client = get_gspread_client()
 
-    # ✅ Add to AI Talent Users
+    # ✅ Add to AI Talent Users sheet
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # ✅ Add to Candidates sheet (if Candidate)
+    # ✅ If candidate, also add a stub row to the Candidates sheet
     if user_type.strip().lower() == "candidate":
         sheet_id = os.getenv("CANDIDATES_SHEET_ID")
-        print(f"📄 CANDIDATES_SHEET_ID = {sheet_id}")
+        print(f"📄 DEBUG: CANDIDATES_SHEET_ID = {sheet_id}")
 
         if not sheet_id:
             raise ValueError("❌ Environment variable CANDIDATES_SHEET_ID is missing.")
 
         candidates_sheet = client.open_by_key(sheet_id).sheet1
 
-        # Fixed column order (11 columns, radius = column K)
-        # [A] Email, [B] Name, [C] Skills, [D] Location, [E] Summary, [F] Job Title,
-        # [G] Job Count, [H] Interview Questions, [I] Embedding, [J] Timestamp, [K] Radius
+        # Define candidate row structure (11 columns)
+        # A: Email, B: Name, ..., K: Radius
         new_row = [""] * 11
         new_row[0] = email
         new_row[1] = name
@@ -61,6 +59,7 @@ def signup():
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
     try:
         add_user_to_sheet(name, email, hashed, user_type)
     except Exception as e:
