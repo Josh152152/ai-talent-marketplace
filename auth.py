@@ -17,34 +17,42 @@ def get_user_from_sheet(email):
             return user
     return None
 
-def add_user_to_sheet(name, email, hashed_pwd, user_type):
+def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
     client = get_gspread_client()
 
-    # Add to AI Talent Users sheet (columns: Name, Email, Password_Hash, Type)
+    # ✅ Add to AI Talent Users
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # Add to Candidates sheet if Candidate
+    # ✅ Add to Candidates sheet (if Candidate)
     if user_type.strip().lower() == "candidate":
-        candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        sheet_id = os.getenv("CANDIDATES_SHEET_ID")
+        print(f"📄 CANDIDATES_SHEET_ID = {sheet_id}")
 
-        # Construct an exact 11-column row: [Email, Name, Skills, Location, Summary, Job Title, Job Count, Interview Questions, Embedding, Timestamp, Radius]
-        new_candidate_row = [""] * 11
-        new_candidate_row[0] = email
-        new_candidate_row[1] = name
-        new_candidate_row[10] = "50"  # Radius always in column K
+        if not sheet_id:
+            raise ValueError("❌ Environment variable CANDIDATES_SHEET_ID is missing.")
 
-        candidates_sheet.append_row(new_candidate_row)
+        candidates_sheet = client.open_by_key(sheet_id).sheet1
+
+        # Fixed column order (11 columns, radius = column K)
+        # [A] Email, [B] Name, [C] Skills, [D] Location, [E] Summary, [F] Job Title,
+        # [G] Job Count, [H] Interview Questions, [I] Embedding, [J] Timestamp, [K] Radius
+        new_row = [""] * 11
+        new_row[0] = email
+        new_row[1] = name
+        new_row[10] = radius  # Radius in column K
+
+        candidates_sheet.append_row(new_row)
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "GET":
         return render_template("signup.html")
 
-    name = request.form.get("name")
-    email = request.form.get("email")
-    password = request.form.get("password")
-    user_type = request.form.get("type")
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    user_type = request.form.get("type", "").strip()
 
     if not name or not email or not password or not user_type:
         return "Missing fields", 400
@@ -53,7 +61,11 @@ def signup():
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_sheet(name, email, hashed, user_type)
+    try:
+        add_user_to_sheet(name, email, hashed, user_type)
+    except Exception as e:
+        print(f"🔥 Error during signup/add_user_to_sheet: {e}")
+        return f"Internal server error: {str(e)}", 500
 
     return redirect("/login")
 
@@ -62,8 +74,8 @@ def login():
     if request.method == "GET":
         return render_template("login.html")
 
-    email = request.form.get("email")
-    password = request.form.get("password")
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
 
     user = get_user_from_sheet(email)
     if not user:
@@ -73,7 +85,6 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
-    # Redirect by role
     if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
