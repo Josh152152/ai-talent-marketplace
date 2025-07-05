@@ -1,16 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Login</title>
+  <title>Sign Up</title>
 </head>
 <body>
-  <h2>Login</h2>
-  <form method="POST" action="/auth/login">  <!-- Updated to /auth/login -->
+  <h2>Sign Up</h2>
+  <form method="POST" action="/auth/signup"> <!-- This should point to /auth/signup -->
+    <input type="text" name="name" placeholder="Full Name" required /><br><br>
     <input type="email" name="email" placeholder="Email" required /><br><br>
     <input type="password" name="password" placeholder="Password" required /><br><br>
-    <button type="submit">Login</button>
+
+    <label>Select Role:</label><br>
+    <input type="radio" name="type" value="Candidate" required> Candidate<br>
+    <input type="radio" name="type" value="Employer" required> Employer<br><br>
+
+    <button type="submit">Sign Up</button>
   </form>
 
-  <p>Don't have an account? <a href="/auth/signup">Sign up</a></p> <!-- Updated to /auth/signup -->
+  <p>Already have an account? <a href="/auth/login">Login here</a></p> <!-- Make sure this points to /auth/login -->
 </body>
 </html>
