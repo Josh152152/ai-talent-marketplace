@@ -36,3 +36,7 @@ def debug_env():
 # Run only in local dev
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+@app.route("/signup-test")
+def signup_test():
+    return "Signup route is alive", 200
