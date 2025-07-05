@@ -47,16 +47,16 @@ def candidate_dashboard():
             if row.get("Email") == email:
                 return render_template("candidate_dashboard.html", data=row)
 
-        return render_template("candidate_dashboard.html", data={"Email": email, "Skills": "Not set yet"})
+        return render_template("candidate_dashboard.html", data={"Email": email, "Name": "Candidate", "Summary": "Not set yet"})
     except Exception as e:
         print(f"🔥 Error in /dashboard: {e}")
         return "Dashboard error", 500
 
-@app.route("/update_skills", methods=["POST"])
-def update_skills():
+@app.route("/update_summary", methods=["POST"])
+def update_summary():
     try:
         email = request.form.get("email")
-        new_skills = request.form.get("skills", "")
+        new_summary = request.form.get("summary", "")
         if not email:
             return "Missing email", 400
 
@@ -66,18 +66,19 @@ def update_skills():
 
         for i, row in enumerate(records):
             if row.get("Email") == email:
-                sheet.update_cell(i + 2, 3, new_skills)
+                # Column 5 = Summary
+                sheet.update_cell(i + 2, 5, new_summary)
                 return redirect(f"/dashboard?email={email}")
 
         return "Candidate not found.", 404
     except Exception as e:
-        print(f"🔥 Error in /update_skills: {e}")
+        print(f"🔥 Error in /update_summary: {e}")
         return "Internal server error", 500
 
 @app.route("/suggest_skills", methods=["POST"])
 def suggest_skills():
     try:
-        data = request.get_json()
+        data = request.get_json() or request.form
         email = data.get("email")
         if not email:
             return jsonify({"error": "Email is required"}), 400
@@ -121,96 +122,4 @@ def debug_jobs():
         summary = candidate.get("Summary", "")
         location = candidate.get("Location", "")
 
-        keywords = f"{skills} {summary}".strip()
-        result = query_jobs(keywords=keywords, location=location, max_results=10)
-
-        return jsonify({
-            "email": email,
-            "location": location,
-            "country_detected": detect_country(location),
-            "keywords_used": keywords,
-            "job_count": result.get("count", 0),
-            "examples": result.get("examples", [])
-        })
-    except Exception as e:
-        print(f"🔥 Error in /debug_jobs: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/match_jobs", methods=["POST"])
-def match_jobs_route():
-    try:
-        data = request.get_json()
-        email = data.get("email")
-        if not email:
-            return jsonify({"error": "Missing email"}), 400
-
-        client = get_gspread_client()
-
-        cand_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        candidates = cand_sheet.get_all_records()
-        candidate = next((r for r in candidates if r["Email"] == email), None)
-        if not candidate:
-            return jsonify({"error": "Candidate not found"}), 404
-
-        if not candidate.get("Summary", "").strip():
-            return jsonify({"error": "Candidate summary is empty"}), 400
-
-        job_sheet = client.open_by_key(os.getenv("JOBS_SHEET_ID")).sheet1
-        job_rows = [r for r in job_sheet.get_all_records() if r.get("Job Summary")]
-
-        if not job_rows:
-            return jsonify({"error": "No job summaries found"}), 404
-
-        matches = match_jobs(candidate, job_rows)
-
-        return jsonify({
-            "email": email,
-            "top_matches": matches
-        })
-    except Exception as e:
-        print(f"🔥 Error in /match_jobs: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/employer_dashboard", methods=["GET"])
-def employer_dashboard():
-    try:
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
-
-        anonymized = []
-        for idx, r in enumerate(records):
-            anonymized.append({
-                "id": idx,
-                "summary": r.get("Summary", "No summary provided"),
-                "skills": r.get("Skills", "No skills listed"),
-                "location": r.get("Location", "Unknown")
-            })
-
-        return render_template("employer_dashboard.html", candidates=anonymized)
-    except Exception as e:
-        print(f"🔥 Error in /employer_dashboard: {e}")
-        return "Employer dashboard failed", 500
-
-@app.route("/unlock/<int:candidate_id>", methods=["GET"])
-def unlock_candidate(candidate_id):
-    try:
-        client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        candidates = sheet.get_all_records()
-
-        if candidate_id < 0 or candidate_id >= len(candidates):
-            return "Candidate not found", 404
-
-        candidate = candidates[candidate_id]
-        return render_template("unlocked_candidate.html", candidate=candidate)
-    except Exception as e:
-        print(f"🔥 Error in /unlock/{candidate_id}: {e}")
-        return "Unlock failed", 500
-
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"status": "ok", "message": "AI Talent Marketplace backend is running"})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+        keyword
