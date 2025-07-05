@@ -17,28 +17,29 @@ def get_user_from_sheet(email):
             return user
     return None
 
-def add_user_to_sheet(email, hashed_pwd, user_type):
+def add_user_to_sheet(name, email, hashed_pwd, user_type):
     client = get_gspread_client()
     sheet = client.open(SHEET_NAME).sheet1
-    sheet.append_row([email, hashed_pwd.decode("utf-8"), user_type])
+    sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "GET":
         return render_template("signup.html")
 
+    name = request.form.get("name")
     email = request.form.get("email")
     password = request.form.get("password")
     user_type = request.form.get("type")
 
-    if not email or not password or not user_type:
+    if not name or not email or not password or not user_type:
         return "Missing fields", 400
 
     if get_user_from_sheet(email):
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_sheet(email, hashed, user_type)
+    add_user_to_sheet(name, email, hashed, user_type)
 
     return redirect("/login")
 
