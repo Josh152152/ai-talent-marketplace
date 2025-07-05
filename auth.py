@@ -17,33 +17,24 @@ def get_user_from_sheet(email):
             return user
     return None
 
-def add_user_to_sheet(name, email, hashed_pwd, user_type, radius):
+def add_user_to_sheet(name, email, hashed_pwd, user_type):
     client = get_gspread_client()
 
-    # Save to AI Talent Users sheet
+    # Add to AI Talent Users sheet (columns: Name, Email, Password_Hash, Type)
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # Save to Candidates sheet if user is a candidate
+    # Add to Candidates sheet if Candidate
     if user_type.strip().lower() == "candidate":
-        candidate_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
 
-        # Construct exactly 11 columns, radius at column K
-        new_row = [
-            email,    # A - Email
-            name,     # B - Name
-            "",       # C - Skills
-            "",       # D - Location
-            "",       # E - Summary
-            "",       # F - Job Title
-            "",       # G - Job Count
-            "",       # H - Interview Questions
-            "",       # I - Embedding
-            "",       # J - Timestamp
-            radius    # K - Radius
-        ]
+        # Construct an exact 11-column row: [Email, Name, Skills, Location, Summary, Job Title, Job Count, Interview Questions, Embedding, Timestamp, Radius]
+        new_candidate_row = [""] * 11
+        new_candidate_row[0] = email
+        new_candidate_row[1] = name
+        new_candidate_row[10] = "50"  # Radius always in column K
 
-        candidate_sheet.append_row(new_row, value_input_option="USER_ENTERED")
+        candidates_sheet.append_row(new_candidate_row)
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -54,7 +45,6 @@ def signup():
     email = request.form.get("email")
     password = request.form.get("password")
     user_type = request.form.get("type")
-    radius = request.form.get("radius", "50").strip()
 
     if not name or not email or not password or not user_type:
         return "Missing fields", 400
@@ -63,7 +53,7 @@ def signup():
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_sheet(name, email, hashed, user_type, radius)
+    add_user_to_sheet(name, email, hashed, user_type)
 
     return redirect("/login")
 
@@ -83,6 +73,7 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
+    # Redirect by role
     if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
