@@ -43,9 +43,9 @@ def test_server():
 def health():
     return {"status": "ok"}, 200
 
-# Print the list of all registered routes (to debug if routes exist)
+# Print the list of all registered routes (for debugging purposes)
 print("🔍 Registered routes:", app.url_map)
 
-# Run only in local dev
+# Run the Flask app only in local development (when not using gunicorn)
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
