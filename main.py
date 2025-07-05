@@ -12,7 +12,7 @@ CORS(app)
 app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
 # Register Blueprints and services
-app.register_blueprint(auth, url_prefix="/")
+app.register_blueprint(auth, url_prefix="/auth")  # Changed URL prefix to '/auth'
 
 # Instantiate systems (if used later in other routes)
 registration = CandidateRegistrationSystem()
