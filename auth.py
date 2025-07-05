@@ -6,7 +6,7 @@ import os
 auth = Blueprint("auth", __name__)
 
 USERS_SHEET = "AI Talent Users"
-CANDIDATE_SHEET_ID = os.getenv("CANDIDATES_SHEET_ID")  # must be in .env
+CANDIDATE_SHEET_ID = os.getenv("CANDIDATES_SHEET_ID")  # Make sure this is set
 
 def get_user_from_sheet(email):
     client = get_gspread_client()
@@ -28,17 +28,18 @@ def create_candidate_profile_if_needed(name, email):
     sheet = client.open_by_key(CANDIDATE_SHEET_ID).sheet1
     records = sheet.get_all_records()
 
+    # Prevent duplicate entry
     already_exists = any(row.get("Email", "").strip().lower() == email.strip().lower() for row in records)
     if not already_exists:
+        # Make sure the order matches your GSheet columns
         sheet.append_row([
-            name,         # Name
-            "",           # Placeholder for whatever column 2 is
-            "",           # Skills
-            "",           # Location
-            "",           # Summary
-            "", "", "", "", "", "", "",  # more columns if needed
-            "",           # Radius (col 13)
-            email         # Email
+            name,     # Name
+            "",       # Skills
+            "",       # Location
+            "",       # Summary
+            "",       # Timestamp (or any unused field)
+            "",       # Radius
+            email     # Email
         ])
 
 @auth.route("/signup", methods=["GET", "POST"])
@@ -60,7 +61,7 @@ def signup():
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     add_user_to_sheet(name, email, hashed, user_type)
 
-    if user_type.lower() == "candidate":
+    if user_type.strip().lower() == "candidate":
         create_candidate_profile_if_needed(name, email)
 
     return redirect("/login")
@@ -81,8 +82,7 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
-    # Redirect by role
-    if user["Type"] == "Candidate":
+    if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
