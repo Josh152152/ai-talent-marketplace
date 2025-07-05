@@ -3,7 +3,9 @@ from flask import Blueprint, request, redirect, render_template
 from sheets import get_gspread_client
 import os
 
+# Create Blueprint for authentication
 auth = Blueprint("auth", __name__)
+
 SHEET_NAME = "AI Talent Users"
 
 def get_user_from_sheet(email):
@@ -18,9 +20,6 @@ def get_user_from_sheet(email):
 
 def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
     client = get_gspread_client()
-
-    # ✅ Log action
-    print(f"📌 Adding user to {SHEET_NAME}: {email} ({user_type})")
 
     # ✅ Add to AI Talent Users sheet
     users_sheet = client.open(SHEET_NAME).sheet1
@@ -47,6 +46,7 @@ def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
             print(f"🔥 Failed to write to Candidates sheet: {e}")
             raise
 
+# Route for signup page
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "GET":
@@ -57,12 +57,15 @@ def signup():
     password = request.form.get("password", "")
     user_type = request.form.get("type", "").strip()
 
+    # Check for missing fields
     if not name or not email or not password or not user_type:
         return "Missing fields", 400
 
+    # Check if the user already exists
     if get_user_from_sheet(email):
         return "User already exists", 400
 
+    # Hash password
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
     try:
@@ -72,8 +75,10 @@ def signup():
         print(f"🔥 Error during signup/add_user_to_sheet: {e}")
         return f"Internal server error: {str(e)}", 500
 
+    # Redirect to login
     return redirect("/login")
 
+# Route for login page
 @auth.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
@@ -90,6 +95,7 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
+    # Redirect to the appropriate dashboard
     if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
