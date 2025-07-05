@@ -41,6 +41,24 @@ def signup():
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     add_user_to_sheet(name, email, hashed, user_type)
 
+    # Auto-create candidate row if user is a candidate
+    if user_type.strip().lower() == "candidate":
+        try:
+            client = get_gspread_client()
+            candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+            # Adjust columns to match your Candidates Sheet layout
+            candidates_sheet.append_row([
+                email,     # Email
+                name,      # Name
+                "",        # Skills
+                "",        # Location
+                "",        # Summary
+                "", "", "", "", "",  # Add more empty fields if your sheet has them
+                ""         # Radius (adjust if needed)
+            ])
+        except Exception as e:
+            print(f"❌ Failed to insert candidate into Candidates sheet: {e}")
+
     return redirect("/login")
 
 @auth.route("/login", methods=["GET", "POST"])
@@ -60,7 +78,7 @@ def login():
         return "Invalid credentials", 401
 
     # Redirect by role
-    if user["Type"] == "Candidate":
+    if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
