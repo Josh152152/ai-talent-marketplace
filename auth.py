@@ -102,3 +102,4 @@ def login():
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
+
