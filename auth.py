@@ -89,6 +89,9 @@ def login():
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
 
+    # Debugging print to check the form input
+    print(f"Login attempt with email: {email} and password: {password}")
+
     user = get_user_from_sheet(email)
     if not user:
         return "Invalid credentials", 401
@@ -97,9 +100,11 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
+    # Debugging to check the user type
+    print(f"User {email} of type {user['Type']} logged in.")
+
     # Redirect to the appropriate dashboard based on user type
     if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
-
