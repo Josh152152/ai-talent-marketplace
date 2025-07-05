@@ -5,11 +5,12 @@ import os
 
 auth = Blueprint("auth", __name__)
 
-SHEET_NAME = "AI Talent Users"
+USERS_SHEET = "AI Talent Users"
+CANDIDATE_SHEET_ID = os.getenv("CANDIDATES_SHEET_ID")  # must be in .env
 
 def get_user_from_sheet(email):
     client = get_gspread_client()
-    sheet = client.open(SHEET_NAME).sheet1
+    sheet = client.open(USERS_SHEET).sheet1
     users = sheet.get_all_records()
 
     for user in users:
@@ -19,8 +20,26 @@ def get_user_from_sheet(email):
 
 def add_user_to_sheet(name, email, hashed_pwd, user_type):
     client = get_gspread_client()
-    sheet = client.open(SHEET_NAME).sheet1
+    sheet = client.open(USERS_SHEET).sheet1
     sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
+
+def create_candidate_profile_if_needed(name, email):
+    client = get_gspread_client()
+    sheet = client.open_by_key(CANDIDATE_SHEET_ID).sheet1
+    records = sheet.get_all_records()
+
+    already_exists = any(row.get("Email", "").strip().lower() == email.strip().lower() for row in records)
+    if not already_exists:
+        sheet.append_row([
+            name,         # Name
+            "",           # Placeholder for whatever column 2 is
+            "",           # Skills
+            "",           # Location
+            "",           # Summary
+            "", "", "", "", "", "", "",  # more columns if needed
+            "",           # Radius (col 13)
+            email         # Email
+        ])
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -28,7 +47,7 @@ def signup():
         return render_template("signup.html")
 
     name = request.form.get("name")
-    email = request.form.get("email")
+    email = request.form.get("email").strip().lower()
     password = request.form.get("password")
     user_type = request.form.get("type")
 
@@ -41,23 +60,8 @@ def signup():
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     add_user_to_sheet(name, email, hashed, user_type)
 
-    # Auto-create candidate row if user is a candidate
-    if user_type.strip().lower() == "candidate":
-        try:
-            client = get_gspread_client()
-            candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-            # Adjust columns to match your Candidates Sheet layout
-            candidates_sheet.append_row([
-                email,     # Email
-                name,      # Name
-                "",        # Skills
-                "",        # Location
-                "",        # Summary
-                "", "", "", "", "",  # Add more empty fields if your sheet has them
-                ""         # Radius (adjust if needed)
-            ])
-        except Exception as e:
-            print(f"❌ Failed to insert candidate into Candidates sheet: {e}")
+    if user_type.lower() == "candidate":
+        create_candidate_profile_if_needed(name, email)
 
     return redirect("/login")
 
@@ -66,7 +70,7 @@ def login():
     if request.method == "GET":
         return render_template("login.html")
 
-    email = request.form.get("email")
+    email = request.form.get("email").strip().lower()
     password = request.form.get("password")
 
     user = get_user_from_sheet(email)
@@ -78,7 +82,7 @@ def login():
         return "Invalid credentials", 401
 
     # Redirect by role
-    if user["Type"].strip().lower() == "candidate":
+    if user["Type"] == "Candidate":
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
