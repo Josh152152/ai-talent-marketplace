@@ -17,38 +17,33 @@ def get_user_from_sheet(email):
             return user
     return None
 
-def add_user_to_sheet(name, email, hashed_pwd, user_type):
+def add_user_to_sheet(name, email, hashed_pwd, user_type, radius):
     client = get_gspread_client()
 
-    # Add to AI Talent Users sheet (columns: Name, Email, Password_Hash, Type)
+    # Save to AI Talent Users sheet
     users_sheet = client.open(SHEET_NAME).sheet1
-    users_sheet.append_row(
-        [name, email, hashed_pwd.decode("utf-8"), user_type],
-        value_input_option="USER_ENTERED"
-    )
+    users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # Add to Candidates sheet if Candidate
+    # Save to Candidates sheet if user is a candidate
     if user_type.strip().lower() == "candidate":
-        candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        candidate_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
 
-        # Ensure 11 columns, exactly in the right order:
-        # [Email, Name, Skills, Location, Summary, Job Title, Job Count, Interview Questions, Embedding, Timestamp, Radius]
+        # Construct exactly 11 columns, radius at column K
         new_row = [
-            email,         # A
-            name,          # B
-            "",            # C
-            "",            # D
-            "",            # E
-            "",            # F
-            "",            # G
-            "",            # H
-            "",            # I
-            "",            # J
-            "50"           # K (Radius)
+            email,    # A - Email
+            name,     # B - Name
+            "",       # C - Skills
+            "",       # D - Location
+            "",       # E - Summary
+            "",       # F - Job Title
+            "",       # G - Job Count
+            "",       # H - Interview Questions
+            "",       # I - Embedding
+            "",       # J - Timestamp
+            radius    # K - Radius
         ]
 
-        # This ensures no column shifting/misalignment
-        candidates_sheet.append_row(new_row, value_input_option="USER_ENTERED")
+        candidate_sheet.append_row(new_row, value_input_option="USER_ENTERED")
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -59,6 +54,7 @@ def signup():
     email = request.form.get("email")
     password = request.form.get("password")
     user_type = request.form.get("type")
+    radius = request.form.get("radius", "50").strip()
 
     if not name or not email or not password or not user_type:
         return "Missing fields", 400
@@ -67,7 +63,7 @@ def signup():
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_sheet(name, email, hashed, user_type)
+    add_user_to_sheet(name, email, hashed, user_type, radius)
 
     return redirect("/login")
 
