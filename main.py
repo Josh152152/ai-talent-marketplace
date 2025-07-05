@@ -18,12 +18,7 @@ app.register_blueprint(auth, url_prefix="/")
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
-# Health check route for Render
-@app.route("/health", methods=["GET"])
-def health():
-    return {"status": "ok"}, 200
-
-# 🔍 Debug route to inspect environment variables (for testing only)
+# Debug route to inspect environment variables (for testing only)
 @app.route("/debug/env", methods=["GET"])
 def debug_env():
     return {
@@ -33,10 +28,16 @@ def debug_env():
         "PORT": os.getenv("PORT"),
     }, 200
 
-# Run only in local dev
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
+# Add the test route above __name__ == "__main__"
 @app.route("/signup-test")
 def signup_test():
     return "Signup route is alive", 200
+
+# Health check route for Render
+@app.route("/health", methods=["GET"])
+def health():
+    return {"status": "ok"}, 200
+
+# Run only in local dev
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
