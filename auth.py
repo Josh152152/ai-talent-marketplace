@@ -5,12 +5,11 @@ import os
 
 auth = Blueprint("auth", __name__)
 
-AUTH_SHEET = "AI Talent Users"
-CANDIDATE_SHEET_ID = os.getenv("CANDIDATES_SHEET_ID")
+SHEET_NAME = "AI Talent Users"
 
 def get_user_from_sheet(email):
     client = get_gspread_client()
-    sheet = client.open(AUTH_SHEET).sheet1
+    sheet = client.open(SHEET_NAME).sheet1
     users = sheet.get_all_records()
 
     for user in users:
@@ -18,24 +17,17 @@ def get_user_from_sheet(email):
             return user
     return None
 
-def add_user_to_auth_sheet(name, email, hashed_pwd, user_type):
+def add_user_to_sheet(name, email, hashed_pwd, user_type):
     client = get_gspread_client()
-    sheet = client.open(AUTH_SHEET).sheet1
-    sheet.append_row([email, hashed_pwd.decode("utf-8"), user_type])
 
-def add_user_to_candidate_sheet(name, email):
-    client = get_gspread_client()
-    sheet = client.open_by_key(CANDIDATE_SHEET_ID).sheet1
-    headers = sheet.row_values(1)
+    # Add to AI Talent Users sheet (ensure correct column order: Name, Email, Password_Hash, Type)
+    users_sheet = client.open(SHEET_NAME).sheet1
+    users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # Prepare blank row with correct columns
-    row = [""] * len(headers)
-    if "Email" in headers:
-        row[headers.index("Email")] = email
-    if "Name" in headers:
-        row[headers.index("Name")] = name
-
-    sheet.append_row(row)
+    # Also add to Candidates sheet if it's a candidate
+    if user_type == "Candidate":
+        candidate_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        candidate_sheet.append_row([email, name, "", "", "", "", "", "", "", ""])
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -54,10 +46,7 @@ def signup():
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_auth_sheet(name, email, hashed, user_type)
-
-    if user_type == "Candidate":
-        add_user_to_candidate_sheet(name, email)
+    add_user_to_sheet(name, email, hashed, user_type)
 
     return redirect("/login")
 
