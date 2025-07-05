@@ -5,12 +5,12 @@ import os
 
 auth = Blueprint("auth", __name__)
 
-USERS_SHEET = "AI Talent Users"
-CANDIDATE_SHEET_ID = os.getenv("CANDIDATES_SHEET_ID")  # Make sure this is set
+AUTH_SHEET = "AI Talent Users"
+CANDIDATE_SHEET_ID = os.getenv("CANDIDATES_SHEET_ID")
 
 def get_user_from_sheet(email):
     client = get_gspread_client()
-    sheet = client.open(USERS_SHEET).sheet1
+    sheet = client.open(AUTH_SHEET).sheet1
     users = sheet.get_all_records()
 
     for user in users:
@@ -18,29 +18,24 @@ def get_user_from_sheet(email):
             return user
     return None
 
-def add_user_to_sheet(name, email, hashed_pwd, user_type):
+def add_user_to_auth_sheet(name, email, hashed_pwd, user_type):
     client = get_gspread_client()
-    sheet = client.open(USERS_SHEET).sheet1
-    sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
+    sheet = client.open(AUTH_SHEET).sheet1
+    sheet.append_row([email, hashed_pwd.decode("utf-8"), user_type])
 
-def create_candidate_profile_if_needed(name, email):
+def add_user_to_candidate_sheet(name, email):
     client = get_gspread_client()
     sheet = client.open_by_key(CANDIDATE_SHEET_ID).sheet1
-    records = sheet.get_all_records()
+    headers = sheet.row_values(1)
 
-    # Prevent duplicate entry
-    already_exists = any(row.get("Email", "").strip().lower() == email.strip().lower() for row in records)
-    if not already_exists:
-        # Make sure the order matches your GSheet columns
-        sheet.append_row([
-            name,     # Name
-            "",       # Skills
-            "",       # Location
-            "",       # Summary
-            "",       # Timestamp (or any unused field)
-            "",       # Radius
-            email     # Email
-        ])
+    # Prepare blank row with correct columns
+    row = [""] * len(headers)
+    if "Email" in headers:
+        row[headers.index("Email")] = email
+    if "Name" in headers:
+        row[headers.index("Name")] = name
+
+    sheet.append_row(row)
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -48,7 +43,7 @@ def signup():
         return render_template("signup.html")
 
     name = request.form.get("name")
-    email = request.form.get("email").strip().lower()
+    email = request.form.get("email")
     password = request.form.get("password")
     user_type = request.form.get("type")
 
@@ -59,10 +54,10 @@ def signup():
         return "User already exists", 400
 
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    add_user_to_sheet(name, email, hashed, user_type)
+    add_user_to_auth_sheet(name, email, hashed, user_type)
 
-    if user_type.strip().lower() == "candidate":
-        create_candidate_profile_if_needed(name, email)
+    if user_type == "Candidate":
+        add_user_to_candidate_sheet(name, email)
 
     return redirect("/login")
 
@@ -71,7 +66,7 @@ def login():
     if request.method == "GET":
         return render_template("login.html")
 
-    email = request.form.get("email").strip().lower()
+    email = request.form.get("email")
     password = request.form.get("password")
 
     user = get_user_from_sheet(email)
@@ -82,7 +77,8 @@ def login():
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash):
         return "Invalid credentials", 401
 
-    if user["Type"].strip().lower() == "candidate":
+    # Redirect by role
+    if user["Type"] == "Candidate":
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
