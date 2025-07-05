@@ -11,11 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-# Render expects this port
+# Expose port 10000
 EXPOSE 10000
 
 # Set environment variable for Render port
 ENV PORT=10000
 
 # Start app with gunicorn, using main.py:app
-CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "120"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "main:app", "--workers", "1", "--timeout", "120"]
