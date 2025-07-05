@@ -20,14 +20,18 @@ def get_user_from_sheet(email):
 def add_user_to_sheet(name, email, hashed_pwd, user_type):
     client = get_gspread_client()
 
-    # Add to AI Talent Users sheet (ensure correct column order: Name, Email, Password_Hash, Type)
+    # Add to AI Talent Users sheet (columns: Name, Email, Password_Hash, Type)
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # Also add to Candidates sheet if it's a candidate
-    if user_type == "Candidate":
-        candidate_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        candidate_sheet.append_row([email, name, "", "", "", "", "", "", "", ""])
+    # Add to Candidates sheet if Candidate (columns: 11 total with Radius in column K)
+    if user_type.lower() == "candidate":
+        candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+
+        # [Email, Name, Skills, Location, Summary, Job Title, Job Count, Interview Questions, Embedding, Timestamp, Radius]
+        new_candidate_row = [email, name] + [""] * 9  # 11 total
+        new_candidate_row[10] = "50"  # Radius (column K)
+        candidates_sheet.append_row(new_candidate_row)
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -67,7 +71,7 @@ def login():
         return "Invalid credentials", 401
 
     # Redirect by role
-    if user["Type"] == "Candidate":
+    if user["Type"].strip().lower() == "candidate":
         return redirect(f"/dashboard?email={email}")
     else:
         return redirect("/employer_dashboard")
