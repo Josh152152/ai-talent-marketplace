@@ -5,6 +5,7 @@ import os
 from auth import auth
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
+from sheets import get_gspread_client  # Ensure you have a get_gspread_client() function in sheets.py
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -27,6 +28,26 @@ def debug_env():
         "GOOGLE_CREDENTIALS_PATH": os.getenv("GOOGLE_CREDENTIALS_PATH"),
         "PORT": os.getenv("PORT"),
     }, 200
+
+# Test route to check if the credentials file is accessible
+@app.route("/test-credentials")
+def test_credentials():
+    try:
+        with open('/etc/secrets/credentials.json', 'r') as file:
+            return "Credentials file is accessible", 200
+    except Exception as e:
+        return f"Error: {e}", 500
+
+# Test route for Google Sheets integration
+@app.route("/test-sheet")
+def test_sheet():
+    try:
+        client = get_gspread_client()
+        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        records = sheet.get_all_records()
+        return {"records": records}, 200
+    except Exception as e:
+        return f"Error accessing Google Sheets: {e}", 500
 
 # Sanity test route to check signup route registration
 @app.route("/signup-test")
