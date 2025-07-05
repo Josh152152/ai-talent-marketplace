@@ -28,7 +28,7 @@ def debug_env():
         "PORT": os.getenv("PORT"),
     }, 200
 
-# Add the test route above __name__ == "__main__"
+# Sanity test route to check signup route registration
 @app.route("/signup-test")
 def signup_test():
     return "Signup route is alive", 200
@@ -37,6 +37,9 @@ def signup_test():
 @app.route("/health", methods=["GET"])
 def health():
     return {"status": "ok"}, 200
+
+# Print the list of all registered routes (to debug if routes exist)
+print("🔍 Registered routes:", app.url_map)
 
 # Run only in local dev
 if __name__ == "__main__":
