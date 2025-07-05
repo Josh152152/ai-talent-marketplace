@@ -11,3 +11,5 @@ openai>=1.2.3
 scikit-learn
 numpy
 geopy
+gspread
+oauth2client
