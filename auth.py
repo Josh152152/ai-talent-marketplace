@@ -24,13 +24,12 @@ def add_user_to_sheet(name, email, hashed_pwd, user_type):
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
 
-    # Add to Candidates sheet if Candidate (columns: 11 total with Radius in column K)
-    if user_type.lower() == "candidate":
+    # Add to Candidates sheet if user is a Candidate
+    if user_type.strip().lower() == "candidate":
         candidates_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
 
-        # [Email, Name, Skills, Location, Summary, Job Title, Job Count, Interview Questions, Embedding, Timestamp, Radius]
-        new_candidate_row = [email, name] + [""] * 9  # 11 total
-        new_candidate_row[10] = "50"  # Radius (column K)
+        # Prepare exactly 11 columns: Email, Name, [empty x8], Radius
+        new_candidate_row = [email, name] + [""] * 8 + ["50"]  # 11 total
         candidates_sheet.append_row(new_candidate_row)
 
 @auth.route("/signup", methods=["GET", "POST"])
