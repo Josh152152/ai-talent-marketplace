@@ -19,11 +19,15 @@ def get_user_from_sheet(email):
 def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
     client = get_gspread_client()
 
+    # ✅ Log action
+    print(f"📌 Adding user to {SHEET_NAME}: {email} ({user_type})")
+
     # ✅ Add to AI Talent Users sheet
     users_sheet = client.open(SHEET_NAME).sheet1
     users_sheet.append_row([name, email, hashed_pwd.decode("utf-8"), user_type])
+    print(f"✅ Added user to {SHEET_NAME}")
 
-    # ✅ If candidate, also add a stub row to the Candidates sheet
+    # ✅ If candidate, also add stub row to Candidates sheet
     if user_type.strip().lower() == "candidate":
         sheet_id = os.getenv("CANDIDATES_SHEET_ID")
         print(f"📄 DEBUG: CANDIDATES_SHEET_ID = {sheet_id}")
@@ -31,16 +35,17 @@ def add_user_to_sheet(name, email, hashed_pwd, user_type, radius="50"):
         if not sheet_id:
             raise ValueError("❌ Environment variable CANDIDATES_SHEET_ID is missing.")
 
-        candidates_sheet = client.open_by_key(sheet_id).sheet1
-
-        # Define candidate row structure (11 columns)
-        # A: Email, B: Name, ..., K: Radius
-        new_row = [""] * 11
-        new_row[0] = email
-        new_row[1] = name
-        new_row[10] = radius  # Radius in column K
-
-        candidates_sheet.append_row(new_row)
+        try:
+            candidates_sheet = client.open_by_key(sheet_id).sheet1
+            new_row = [""] * 11
+            new_row[0] = email
+            new_row[1] = name
+            new_row[10] = radius  # Radius always in column K
+            candidates_sheet.append_row(new_row)
+            print(f"✅ Stub row added to Candidates sheet for {email}")
+        except Exception as e:
+            print(f"🔥 Failed to write to Candidates sheet: {e}")
+            raise
 
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -61,6 +66,7 @@ def signup():
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
     try:
+        print(f"🔐 Registering user: {email}")
         add_user_to_sheet(name, email, hashed, user_type)
     except Exception as e:
         print(f"🔥 Error during signup/add_user_to_sheet: {e}")
