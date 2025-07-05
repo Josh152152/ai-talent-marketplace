@@ -4,6 +4,7 @@ import os
 import sys
 from dotenv import load_dotenv
 
+# Load environment variables
 sys.stdout.reconfigure(line_buffering=True)
 load_dotenv()
 
@@ -11,6 +12,7 @@ app = Flask(__name__)
 CORS(app)
 app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
+# Import project modules
 from sheets import get_gspread_client
 from candidate_registration import CandidateRegistrationSystem
 from matching_system import MatchingSystem
@@ -30,7 +32,7 @@ def health():
 @app.route("/dashboard", methods=["GET"])
 def candidate_dashboard():
     try:
-        email = request.args.get("email")
+        email = request.args.get("email", "").strip().lower()
         if not email:
             return "Missing email", 400
 
@@ -39,7 +41,7 @@ def candidate_dashboard():
         records = sheet.get_all_records()
 
         for row in records:
-            if row.get("Email", "").strip().lower() == email.strip().lower():
+            if row.get("Email", "").strip().lower() == email:
                 return render_template("candidate_dashboard.html", data=row)
 
         return render_template("candidate_dashboard.html", data={"Email": email, "Name": "Candidate", "Summary": "Not set yet"})
@@ -51,9 +53,9 @@ def candidate_dashboard():
 def update_candidate_profile():
     try:
         email = request.form.get("email", "").strip().lower()
-        new_summary = request.form.get("summary", "")
-        new_location = request.form.get("location", "")
-        new_radius = request.form.get("radius", "")
+        summary = request.form.get("summary", "")
+        location = request.form.get("location", "")
+        radius = request.form.get("radius", "")
 
         if not email:
             return "Missing email", 400
@@ -62,21 +64,17 @@ def update_candidate_profile():
         sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         records = sheet.get_all_records()
 
-        row_index = None
         for i, row in enumerate(records):
             if row.get("Email", "").strip().lower() == email:
-                row_index = i + 2  # 1-based indexing + header
-                break
+                if location:
+                    sheet.update_cell(i + 2, 4, location)
+                if summary:
+                    sheet.update_cell(i + 2, 5, summary)
+                if radius:
+                    sheet.update_cell(i + 2, 13, radius)
+                return redirect(f"/dashboard?email={email}")
 
-        if not row_index:
-            return "Candidate not found.", 404
-
-        # Column 5 = Summary, 4 = Location, 11 = Radius
-        sheet.update_cell(row_index, 5, new_summary)
-        sheet.update_cell(row_index, 4, new_location)
-        sheet.update_cell(row_index, 11, new_radius)
-
-        return redirect(f"/dashboard?email={email}")
+        return "Candidate not found.", 404
     except Exception as e:
         print(f"🔥 Error in /update_candidate_profile: {e}")
         return "Internal server error", 500
@@ -85,7 +83,7 @@ def update_candidate_profile():
 def suggest_skills():
     try:
         data = request.get_json() or request.form
-        email = data.get("email")
+        email = data.get("email", "").strip().lower()
         if not email:
             return jsonify({"error": "Email is required"}), 400
 
@@ -93,7 +91,7 @@ def suggest_skills():
         sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         records = sheet.get_all_records()
 
-        candidate = next((r for r in records if r["Email"].strip().lower() == email.strip().lower()), None)
+        candidate = next((r for r in records if r.get("Email", "").strip().lower() == email), None)
         if not candidate:
             return jsonify({"error": "Candidate not found"}), 404
 
@@ -112,7 +110,7 @@ def suggest_skills():
 def debug_jobs():
     try:
         data = request.get_json()
-        email = data.get("email")
+        email = data.get("email", "").strip().lower()
         if not email:
             return jsonify({"error": "Missing email"}), 400
 
@@ -120,7 +118,7 @@ def debug_jobs():
         sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
         records = sheet.get_all_records()
 
-        candidate = next((r for r in records if r["Email"].strip().lower() == email.strip().lower()), None)
+        candidate = next((r for r in records if r.get("Email", "").strip().lower() == email), None)
         if not candidate:
             return jsonify({"error": "Candidate not found"}), 404
 
@@ -147,15 +145,14 @@ def debug_jobs():
 def match_jobs_route():
     try:
         data = request.get_json() or request.form
-        email = data.get("email")
+        email = data.get("email", "").strip().lower()
         if not email:
             return jsonify({"error": "Missing email"}), 400
 
         client = get_gspread_client()
-        sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
-        records = sheet.get_all_records()
-
-        candidate = next((r for r in records if r["Email"].strip().lower() == email.strip().lower()), None)
+        cand_sheet = client.open_by_key(os.getenv("CANDIDATES_SHEET_ID")).sheet1
+        candidates = cand_sheet.get_all_records()
+        candidate = next((r for r in candidates if r.get("Email", "").strip().lower() == email), None)
         if not candidate:
             return jsonify({"error": "Candidate not found"}), 404
 
