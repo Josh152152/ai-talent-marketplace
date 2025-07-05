@@ -3,19 +3,28 @@ from flask_cors import CORS
 import os
 import sys
 from dotenv import load_dotenv
-from sheets import get_gspread_client
-from candidate_registration import CandidateRegistrationSystem
-from matching_system import MatchingSystem
-from adzuna_helper import query_jobs, detect_country
-from smart_matcher import suggest_missing_skills, match_jobs
 
+# Load environment variables
 sys.stdout.reconfigure(line_buffering=True)
 load_dotenv()
 
+# Core setup
 app = Flask(__name__)
 CORS(app)
 app.secret_key = os.getenv("APP_SECRET_KEY", "super-secret-key")
 
+# Import project modules
+from sheets import get_gspread_client
+from candidate_registration import CandidateRegistrationSystem
+from matching_system import MatchingSystem
+from adzuna_helper import query_jobs, detect_country
+from smart_matcher import match_jobs
+from auth import auth  # 🔐 Auth Blueprint
+
+# Register blueprints
+app.register_blueprint(auth)
+
+# Init logic modules
 registration = CandidateRegistrationSystem()
 matcher = MatchingSystem()
 
